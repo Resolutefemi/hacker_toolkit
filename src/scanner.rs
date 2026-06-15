@@ -330,7 +330,223 @@ pub async fn run_full_scan(
     result.security_headers = get_security_headers(&client, &base_url).await;
     // 8. CVE matches
     result.cve_matches = cve::check_cves(&client, &base_url).await;
+    
+    // 9. Technology Fingerprinting
+    result.technologies = fingerprint_technologies(&client, &base_url, &result.security_headers).await;
+
+    // 10. Subdomain Takeovers
+    if !result.subdomains.is_empty() {
+        result.subdomain_takeovers = detect_takeovers(&client, &result.subdomains).await;
+    }
+
+    // 11. DNS Zone Transfer
+    result.zone_transfers = check_zone_transfer(&host).await;
 
     if let Some(cb) = &progress_callback { cb(1.0); }
     result
+}
+
+// ========== Advanced Technology Fingerprinting ==========
+pub async fn fingerprint_technologies(client: &Client, base_url: &Url, headers_str: &str) -> Vec<String> {
+    let mut techs = Vec::new();
+    let lower_headers = headers_str.to_lowercase();
+    
+    // Check headers
+    if lower_headers.contains("server: apache") {
+        techs.push("Apache Web Server".to_string());
+    }
+    if lower_headers.contains("server: nginx") {
+        techs.push("Nginx Web Server".to_string());
+    }
+    if lower_headers.contains("server: cloudflare") {
+        techs.push("Cloudflare CDN/WAF".to_string());
+    }
+    if lower_headers.contains("server: microsoft-iis") {
+        techs.push("Microsoft IIS Web Server".to_string());
+    }
+    if lower_headers.contains("x-powered-by: php") {
+        techs.push("PHP Backend".to_string());
+    }
+    if lower_headers.contains("x-powered-by: asp.net") || lower_headers.contains("set-cookie: asp.net_sessionid") {
+        techs.push("ASP.NET Framework".to_string());
+    }
+    if lower_headers.contains("x-powered-by: express") || lower_headers.contains("x-powered-by: next.js") {
+        techs.push("Node.js / Express".to_string());
+    }
+    if lower_headers.contains("x-generator: drupal") {
+        techs.push("Drupal CMS".to_string());
+    }
+    if lower_headers.contains("x-ghost-cache") {
+        techs.push("Ghost Blog CMS".to_string());
+    }
+
+    // Fetch homepage content for deeper signatures
+    if let Ok(resp) = client.get(base_url.as_str()).send().await {
+        if let Ok(body) = resp.text().await {
+            let lower_body = body.to_lowercase();
+            if lower_body.contains("/wp-content/") || lower_body.contains("/wp-includes/") {
+                techs.push("WordPress CMS".to_string());
+            }
+            if lower_body.contains("joomla") {
+                techs.push("Joomla CMS".to_string());
+            }
+            if lower_body.contains("_next/static") {
+                techs.push("Next.js Framework".to_string());
+            }
+            if lower_body.contains("id=\"___gatsby\"") {
+                techs.push("Gatsby Static Site Generator".to_string());
+            }
+            if lower_body.contains("__nuxt") {
+                techs.push("Nuxt.js Framework".to_string());
+            }
+            if lower_body.contains("ng-version") {
+                techs.push("Angular Frontend Framework".to_string());
+            }
+            if lower_body.contains("react-data") || lower_body.contains("react-root") {
+                techs.push("React.js Frontend Library".to_string());
+            }
+            if lower_body.contains("v-cloak") || lower_body.contains("vue") {
+                techs.push("Vue.js Frontend Framework".to_string());
+            }
+        }
+    }
+    techs.dedup();
+    techs
+}
+
+// ========== DNS Zone Transfer (AXFR) Check ==========
+pub async fn check_zone_transfer(host: &str) -> Vec<String> {
+    let mut vulnerabilities = Vec::new();
+    let domain = crate::utils::extract_domain(host);
+    
+    // Create hickory resolver
+    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
+        hickory_resolver::config::ResolverConfig::default(),
+        hickory_resolver::config::ResolverOpts::default(),
+    );
+
+    // Lookup NS records
+    if let Ok(ns_lookup) = resolver.ns_lookup(format!("{}.", domain)).await {
+        for ns in ns_lookup.iter() {
+            let ns_name = ns.to_string();
+            // Resolve Name Server IP
+            if let Ok(ips) = resolver.lookup_ip(&ns_name).await {
+                for ip in ips.iter() {
+                    // Try to connect over TCP on DNS port 53 with 2 second timeout
+                    let addr = std::net::SocketAddr::new(ip, 53);
+                    if let Ok(Ok(mut stream)) = tokio::time::timeout(
+                        std::time::Duration::from_secs(2),
+                        tokio::net::TcpStream::connect(addr)
+                    ).await {
+                        // Prepare raw AXFR query payload (prefixed by 2-byte length for TCP)
+                        let mut q = vec![
+                            0x12, 0x34, // ID
+                            0x00, 0x00, // Flags: Standard query
+                            0x00, 0x01, // QDCOUNT: 1 question
+                            0x00, 0x00, // ANCOUNT: 0
+                            0x00, 0x00, // NSCOUNT: 0
+                            0x00, 0x00, // ARCOUNT: 0
+                        ];
+                        for part in domain.split('.') {
+                            if !part.is_empty() {
+                                q.push(part.len() as u8);
+                                q.extend_from_slice(part.as_bytes());
+                            }
+                        }
+                        q.push(0x00); // end of name
+                        q.push(0x00); q.push(0xfc); // QTYPE: AXFR (252)
+                        q.push(0x00); q.push(0x01); // QCLASS: IN (1)
+
+                        let q_len = q.len() as u16;
+                        let mut packet = vec![(q_len >> 8) as u8, (q_len & 0xff) as u8];
+                        packet.extend(q);
+
+                        use tokio::io::{AsyncWriteExt, AsyncReadExt};
+                        if stream.write_all(&packet).await.is_ok() {
+                            let mut len_bytes = [0u8; 2];
+                            if let Ok(Ok(_)) = tokio::time::timeout(
+                                std::time::Duration::from_secs(2),
+                                stream.read_exact(&mut len_bytes)
+                            ).await {
+                                let resp_len = ((len_bytes[0] as usize) << 8) | (len_bytes[1] as usize);
+                                if resp_len > 12 {
+                                    let mut resp = vec![0u8; resp_len];
+                                    if let Ok(Ok(_)) = tokio::time::timeout(
+                                        std::time::Duration::from_secs(2),
+                                        stream.read_exact(&mut resp)
+                                    ).await {
+                                        // Simple heuristic: If DNS response returns ANCOUNT > 0
+                                        let ancount = ((resp[6] as u16) << 8) | (resp[7] as u16);
+                                        if ancount > 0 {
+                                            vulnerabilities.push(format!("⚠️ Name Server {} ({}) allows AXFR Zone Transfer", ns_name, ip));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    vulnerabilities
+}
+
+// ========== Subdomain Takeover Detection ==========
+pub async fn detect_takeovers(client: &Client, subdomains: &[String]) -> Vec<String> {
+    let mut vulnerabilities = Vec::new();
+    
+    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
+        hickory_resolver::config::ResolverConfig::default(),
+        hickory_resolver::config::ResolverOpts::default(),
+    );
+
+    for sub in subdomains {
+        // Query CNAME records
+        if let Ok(cname_lookup) = resolver.lookup(format!("{}.", sub), hickory_resolver::proto::rr::RecordType::CNAME).await {
+            for cname_record in cname_lookup.iter() {
+                let cname = cname_record.to_string().to_lowercase();
+                
+                // Takeover candidates check
+                let mut matched_provider = None;
+                let mut signatures = Vec::new();
+
+                if cname.contains("github.io") {
+                    matched_provider = Some("GitHub Pages");
+                    signatures.push("there isn't a github pages site here");
+                    signatures.push("404 not found");
+                } else if cname.contains("herokuapp.com") {
+                    matched_provider = Some("Heroku App");
+                    signatures.push("no-such-app");
+                    signatures.push("welcome to your new app");
+                } else if cname.contains("amazonaws.com") {
+                    matched_provider = Some("AWS S3 Bucket");
+                    signatures.push("nosuchbucket");
+                } else if cname.contains("myshopify.com") {
+                    matched_provider = Some("Shopify Store");
+                    signatures.push("sorry, this shop is currently unavailable");
+                } else if cname.contains("squarespace.com") {
+                    matched_provider = Some("Squarespace Site");
+                    signatures.push("site not found");
+                }
+
+                if let Some(provider) = matched_provider {
+                    // CNAME points to a known cloud provider; check if subdomain is active/dangling
+                    let url = format!("http://{}", sub);
+                    if let Ok(resp) = client.get(&url).send().await {
+                        if let Ok(body) = resp.text().await {
+                            let lower_body = body.to_lowercase();
+                            for sig in signatures {
+                                if lower_body.contains(sig) {
+                                    vulnerabilities.push(format!("⚠️ Subdomain {} points to dangling {} ({})", sub, provider, cname));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    vulnerabilities
 }

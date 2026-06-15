@@ -201,6 +201,54 @@ pub fn generate_html_report(result: &ScanResult) -> String {
     </div>
 "#, result.security_headers));
 
+    // Technologies Fingerprinted
+    if !result.technologies.is_empty() {
+        html.push_str(&format!(r#"
+        <div class="card">
+            <h2>🛠️ Detected Technologies ({})</h2>
+            <div class="port-list">
+        "#, result.technologies.len()));
+        for tech in &result.technologies {
+            html.push_str(&format!(r#"<div class="port-item">{}</div>"#, tech));
+        }
+        html.push_str(r#"
+            </div>
+        </div>
+        "#);
+    }
+
+    // Subdomain Takeovers
+    if !result.subdomain_takeovers.is_empty() {
+        html.push_str(&format!(r#"
+        <div class="card" style="border-left: 4px solid #ef4444;">
+            <h2>⚠️ Potential Subdomain Takeovers ({})</h2>
+            <div class="port-list" style="flex-direction: column;">
+        "#, result.subdomain_takeovers.len()));
+        for takeover in &result.subdomain_takeovers {
+            html.push_str(&format!(r#"<div class="vuln-url" style="color:#f87171;">{}</div>"#, takeover));
+        }
+        html.push_str(r#"
+            </div>
+        </div>
+        "#);
+    }
+
+    // DNS Zone Transfers
+    if !result.zone_transfers.is_empty() {
+        html.push_str(&format!(r#"
+        <div class="card" style="border-left: 4px solid #ef4444;">
+            <h2>⚠️ Vulnerable DNS Zone Transfers ({})</h2>
+            <div class="port-list" style="flex-direction: column;">
+        "#, result.zone_transfers.len()));
+        for zt in &result.zone_transfers {
+            html.push_str(&format!(r#"<div class="vuln-url" style="color:#f87171;">{}</div>"#, zt));
+        }
+        html.push_str(r#"
+            </div>
+        </div>
+        "#);
+    }
+
     // CVE Matches
     if !result.cve_matches.is_empty() {
         html.push_str(&format!(r#"

