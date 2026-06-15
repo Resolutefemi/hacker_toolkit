@@ -28,6 +28,6 @@ Includes modules for vulnerability scanning, stress testing (DoS simulation), cr
 
 ### Build from source
 ```bash
-git clone https://github.com/yourusername/ultimate_hacker_toolkit.git
-cd ultimate_hacker_toolkit
+git clone https://github.com/Resolutefemi/hacker_toolkit.git
+cd hacker_toolkit
 cargo build --release

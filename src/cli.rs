@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand};
 use ultimate_hacker_toolkit::*;
 use std::fs;
 use tokio;
+use mimalloc::MiMalloc;
 
+#[global_allocator]
+static  GLOBAL: MiMalloc = MiMalloc;
 #[derive(Parser)]
 #[command(name = "htool")]
 #[command(about = "Ultimate Hacker Toolkit - All-in-one security testing", long_about = None)]

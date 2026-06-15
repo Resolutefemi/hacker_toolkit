@@ -12,5 +12,4 @@ pub mod cve;
 
 // Re-export commonly used types
 pub use scanner::{ScanResult, ScannerConfig, ScanType};
-pub use report::FullReport;
 pub use utils::{create_rate_limiter, load_wordlist, build_http_client, SharedRateLimiter};

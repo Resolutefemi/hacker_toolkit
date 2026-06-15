@@ -99,7 +99,7 @@ pub async fn credential_stuffing(
                 ];
                 params.extend(cfg.extra_fields.clone());
                 
-                let response = client.post(&cfg.login_url)
+                let response: Result<reqwest::Response, reqwest::Error> = client.post(&cfg.login_url)
                     .form(&params)
                     .send()
                     .await;
@@ -115,7 +115,7 @@ pub async fn credential_stuffing(
                 if let Ok(resp) = response {
                     result.response_code = resp.status().as_u16();
                     if let Ok(body) = resp.text().await {
-                        result.response_body_snippet = body.chars().take(200).collect();
+                        result.response_body_snippet = body.chars().take(200).collect::<String>();
                         if let Some(success_text) = &cfg.success_indicator {
                             if body.to_lowercase().contains(&success_text.to_lowercase()) {
                                 result.success = true;

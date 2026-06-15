@@ -4389,6 +4389,7 @@ name = "ultimate_hacker_toolkit"
 version = "3.0.0"
 dependencies = [
  "async-trait",
+ "base64",
  "chrono",
  "clap",
  "eframe",
@@ -4408,6 +4409,7 @@ dependencies = [
  "tokio",
  "toml",
  "url",
+ "urlencoding",
 ]
 
 [[package]]
