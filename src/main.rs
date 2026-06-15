@@ -2,12 +2,8 @@
 //! Provides tabs for each module: Scanner, Stress, Credential Stuffing, Spam, Payload, Report.
 
 use eframe::egui;
-use egui::{RichText, Color32, ProgressBar, ScrollArea, Separator};
+use egui::{RichText, Color32, ProgressBar, ScrollArea};
 use ultimate_hacker_toolkit::*;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use std::thread;
-use std::time::Duration;
 use mimalloc::MiMalloc;
 
 #[global_allocator]

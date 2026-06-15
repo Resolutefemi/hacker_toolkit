@@ -68,7 +68,7 @@ pub async fn email_bomber(
     proxy: Option<&str>,
     rate_limiter: SharedRateLimiter,
 ) -> usize {
-    let client = build_http_client(proxy, 10, "EmailBomber/1.0");
+    let _client = build_http_client(proxy, 10, "EmailBomber/1.0");
     let semaphore = Arc::new(Semaphore::new(threads));
     let mut tasks = vec![];
     let mut sent = 0;
@@ -108,7 +108,7 @@ pub async fn sms_bomber(
     api_key: Option<&str>,
     rate_limiter: SharedRateLimiter,
 ) -> usize {
-    let client = Client::new();
+    let _client = Client::new();
     let semaphore = Arc::new(Semaphore::new(threads));
     let mut tasks = vec![];
     let mut sent = 0;
