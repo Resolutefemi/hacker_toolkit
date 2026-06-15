@@ -2068,6 +2068,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "htool"
+version = "3.0.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chrono",
+ "clap",
+ "eframe",
+ "egui",
+ "futures",
+ "governor",
+ "hickory-resolver",
+ "maud",
+ "mimalloc",
+ "native-tls",
+ "once_cell",
+ "rand",
+ "regex",
+ "reqwest",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml 0.8.23",
+ "url",
+ "urlencoding",
+ "winres",
+]
+
+[[package]]
 name = "http"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4503,36 +4533,6 @@ dependencies = [
  "memoffset 0.9.1",
  "tempfile",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "ultimate_hacker_toolkit"
-version = "3.0.0"
-dependencies = [
- "async-trait",
- "base64",
- "chrono",
- "clap",
- "eframe",
- "egui",
- "futures",
- "governor",
- "hickory-resolver",
- "maud",
- "mimalloc",
- "native-tls",
- "once_cell",
- "rand",
- "regex",
- "reqwest",
- "rfd",
- "serde",
- "serde_json",
- "tokio",
- "toml 0.8.23",
- "url",
- "urlencoding",
- "winres",
 ]
 
 [[package]]

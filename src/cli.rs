@@ -2,7 +2,7 @@
 //! Supports all modules: scan, stress, credential stuffing, spam, payload, report.
 
 use clap::{Parser, Subcommand};
-use ultimate_hacker_toolkit::*;
+use htool::*;
 use std::fs;
 use tokio;
 use mimalloc::MiMalloc;
