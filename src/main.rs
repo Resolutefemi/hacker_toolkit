@@ -280,8 +280,10 @@ impl eframe::App for UltimateApp {
                     });
                     ui.horizontal(|ui| {
                         ui.label("Attack type:");
-                        egui::ComboBox::from_label("").show_index(ui, &mut self.stress_attack.as_str().into(), ["http", "http-random", "slowloris", "udp", "syn", "advanced", "icmp"].len(), |i| {
-                            ["http", "http-random", "slowloris", "udp", "syn", "advanced", "icmp"][i].to_string()
+                        egui::ComboBox::from_label("").selected_text(&self.stress_attack).show_ui(ui, |ui| {
+                            for attack in &["http", "http-random", "slowloris", "udp", "syn", "advanced", "icmp"] {
+                                ui.selectable_value(&mut self.stress_attack, attack.to_string(), *attack);
+                            }
                         });
                     });
                     ui.horizontal(|ui| {
@@ -389,12 +391,16 @@ impl eframe::App for UltimateApp {
                     ui.heading("📡 Payload Generator");
                     ui.horizontal(|ui| {
                         ui.label("Type:");
-                        egui::ComboBox::from_label("").show_index(ui, &mut self.payload_type.as_str().into(), ["reverse", "bind", "webshell", "downloadexec"].len(), |i| {
-                            ["reverse", "bind", "webshell", "downloadexec"][i].to_string()
+                        egui::ComboBox::from_label("").selected_text(&self.payload_type).show_ui(ui, |ui| {
+                            for t in &["reverse", "bind", "webshell", "downloadexec"] {
+                                ui.selectable_value(&mut self.payload_type, t.to_string(), *t);
+                            }
                         });
                         ui.label("Platform:");
-                        egui::ComboBox::from_label("").show_index(ui, &mut self.payload_platform.as_str().into(), ["linux", "windows", "python", "php", "nodejs", "ruby", "perl"].len(), |i| {
-                            ["linux", "windows", "python", "php", "nodejs", "ruby", "perl"][i].to_string()
+                        egui::ComboBox::from_label("").selected_text(&self.payload_platform).show_ui(ui, |ui| {
+                            for p in &["linux", "windows", "python", "php", "nodejs", "ruby", "perl"] {
+                                ui.selectable_value(&mut self.payload_platform, p.to_string(), *p);
+                            }
                         });
                     });
                     if self.payload_type == "reverse" || self.payload_type == "bind" {

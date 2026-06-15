@@ -2,8 +2,7 @@
 //! Rate limiting, wordlist loading, HTTP client building,
 //! proxy rotation, user-agent rotation, and common helpers.
 
-use governor::{RateLimiter, Quota};
-use governor::clock::DefaultClock;
+use governor::{Quota, DefaultDirectRateLimiter};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -12,12 +11,12 @@ use rand::thread_rng;
 use std::time::Duration;
 
 /// Shared rate limiter type used across all modules
-pub type SharedRateLimiter = Arc<Mutex<RateLimiter<DefaultClock>>>;
+pub type SharedRateLimiter = Arc<Mutex<DefaultDirectRateLimiter>>;
 
 /// Create a new rate limiter with given requests per second
 pub fn create_rate_limiter(rps: u32) -> SharedRateLimiter {
     let quota = Quota::per_second(NonZeroU32::new(rps).unwrap());
-    Arc::new(Mutex::new(RateLimiter::direct(quota)))
+    Arc::new(Mutex::new(DefaultDirectRateLimiter::direct(quota)))
 }
 
 /// Wait for rate limiter approval

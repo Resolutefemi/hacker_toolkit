@@ -21,6 +21,9 @@ pub struct ScanResult {
     pub ssl_info: String,
     pub security_headers: String,
     pub cve_matches: Vec<String>,
+    pub technologies: Vec<String>,
+    pub subdomain_takeovers: Vec<String>,
+    pub zone_transfers: Vec<String>,
     pub errors: Vec<String>,
 }
 
@@ -37,6 +40,9 @@ impl ScanResult {
             ssl_info: String::new(),
             security_headers: String::new(),
             cve_matches: Vec::new(),
+            technologies: Vec::new(),
+            subdomain_takeovers: Vec::new(),
+            zone_transfers: Vec::new(),
             errors: Vec::new(),
         }
     }

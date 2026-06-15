@@ -41,6 +41,7 @@ async-trait = "0.1"
 mimalloc = "0.1.52"
 base64 = "0.22"
 urlencoding = "2.1"
+hickory-resolver = "0.24"
 
 [profile.release]
 # High optimisation level (3) for speed and memory

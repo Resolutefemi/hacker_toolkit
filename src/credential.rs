@@ -20,6 +20,7 @@ pub struct LoginResult {
 }
 
 /// Credential stuffing configuration
+#[derive(Debug, Clone)]
 pub struct CredStuffConfig {
     pub login_url: String,
     pub username_field: String,

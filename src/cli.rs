@@ -287,7 +287,7 @@ async fn main() {
                 user_agent: utils::random_user_agent(),
             };
             println!("🚀 Starting credential stuffing with {} users, {} passwords", usernames.len(), passwords.len());
-            let results = credential_stuffing(&config, usernames, passwords, None).await;
+            let results: Vec<LoginResult> = credential_stuffing(&config, usernames, passwords, None).await;
             let successful: Vec<_> = results.iter().filter(|r| r.success).collect();
             println!("✅ Done. Successful: {}/{}", successful.len(), results.len());
             if let Some(out) = output {
