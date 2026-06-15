@@ -1,6 +1,6 @@
-# 🔥 Ultimate Hacker Toolkit
+# 🔧 htool
 
-A professional‑grade, all‑in‑one security testing framework written in **Rust**.  
+A professional‑grade, all‑in‑one security testing framework and GUI dashboard written in **Rust**.  
 Includes modules for vulnerability scanning, stress testing (DoS simulation), credential stuffing, spam/flooding, payload generation, and reporting.
 
 **⚠️ Legal Disclaimer:** This tool is for **authorised security testing and educational purposes only**. Unauthorised use against systems you do not own or have explicit permission to test is illegal. Use at your own risk.
@@ -28,12 +28,22 @@ Includes modules for vulnerability scanning, stress testing (DoS simulation), cr
 - Rust (1.70+)
 - Cargo
 
+### Install from crates.io
+Once published, you can install the CLI tool directly from the official registry:
+```bash
+cargo install htool
+```
+
 ### Build from source
 ```bash
-git clone https://github.com/Resolutefemi/hacker_toolkit.git
-cd hacker_toolkit
+git clone https://github.com/Resolutefemi/htool.git
+cd htool
 cargo build --release
 ```
+* The compiled binary for CLI will be at `./target/release/htool`
+* The compiled binary for GUI will be at `./target/release/htool-gui`
+
+---
 
 ## 🚀 Usage
 
@@ -104,3 +114,5 @@ Launch the interactive dashboard with real-time logs, live async progress bars, 
 ```bash
 ./target/release/htool-gui
 ```
+
+* **Desktop Icon:** The Windows executable is pre-packaged with a custom high-tech glowing cybersecurity shield icon (`assets/icon.ico`).
