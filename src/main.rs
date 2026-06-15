@@ -29,6 +29,7 @@ enum ActiveTab {
     Spam,
     Payload,
     Report,
+    CveSearch,
 }
 
 struct UltimateApp {
@@ -86,6 +87,9 @@ struct UltimateApp {
     // Channel
     tx: std::sync::mpsc::Sender<AppMessage>,
     rx: std::sync::mpsc::Receiver<AppMessage>,
+    // CVE Search tab
+    cve_query: String,
+    cve_results: Vec<CveEntry>,
 }
 
 impl Default for UltimateApp {
@@ -138,6 +142,8 @@ impl Default for UltimateApp {
             logs: Vec::new(),
             tx: tx_chan,
             rx: rx_chan,
+            cve_query: String::new(),
+            cve_results: Vec::new(),
         }
     }
 }
@@ -270,6 +276,9 @@ impl eframe::App for UltimateApp {
                 if ui.selectable_label(self.active_tab == ActiveTab::Report, "📊 Report").clicked() {
                     self.active_tab = ActiveTab::Report;
                 }
+                if ui.selectable_label(self.active_tab == ActiveTab::CveSearch, "🔍 CVE Search").clicked() {
+                    self.active_tab = ActiveTab::CveSearch;
+                }
             });
         });
 
@@ -324,6 +333,23 @@ impl eframe::App for UltimateApp {
                         ui.label(format!("Technologies: {:?}", result.technologies));
                         ui.label(format!("Subdomain Takeovers: {:?}", result.subdomain_takeovers));
                         ui.label(format!("DNS Zone Transfers: {:?}", result.zone_transfers));
+                        ui.add_space(5.0);
+                        ui.horizontal(|ui| {
+                            if ui.button("📄 Export HTML Report").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().add_filter("HTML Files", &["html"]).save_file() {
+                                    let path_str = path.display().to_string();
+                                    let _ = save_html_report(result, &path_str);
+                                    self.add_log(format!("HTML report exported to {}", path_str));
+                                }
+                            }
+                            if ui.button("💾 Export JSON Report").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().add_filter("JSON Files", &["json"]).save_file() {
+                                    let path_str = path.display().to_string();
+                                    let _ = save_json_report(result, &path_str);
+                                    self.add_log(format!("JSON report exported to {}", path_str));
+                                }
+                            }
+                        });
                     }
                 }
                 ActiveTab::Stress => {
@@ -593,6 +619,41 @@ impl eframe::App for UltimateApp {
                         } else {
                             self.add_log("Cannot read file".to_string());
                         }
+                    }
+                }
+                ActiveTab::CveSearch => {
+                    ui.heading("🔍 Search CVE Offline Database");
+                    ui.horizontal(|ui| {
+                        ui.label("Search query:");
+                        ui.text_edit_singleline(&mut self.cve_query);
+                        if ui.button("🔍 Search").clicked() {
+                            if !self.cve_query.is_empty() {
+                                self.cve_results = search_cves(&self.cve_query);
+                                self.add_log(format!("CVE Search returned {} entries.", self.cve_results.len()));
+                            } else {
+                                self.cve_results.clear();
+                            }
+                        }
+                    });
+                    ui.separator();
+                    if self.cve_results.is_empty() {
+                        ui.label("No results. Enter a query keyword (e.g. 'Apache', 'Log4j', 'Redis') and click Search.");
+                    } else {
+                        ui.label(format!("Found {} matching entries:", self.cve_results.len()));
+                        ScrollArea::vertical().max_height(450.0).show(ui, |ui| {
+                            for cve in &self.cve_results {
+                                ui.group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.colored_label(Color32::from_rgb(100, 200, 255), format!("📌 {}", cve.id));
+                                        ui.colored_label(Color32::from_rgb(239, 68, 68), format!("CVSS: {}", cve.cvss_score));
+                                        ui.label(format!("Year: {}", cve.published_year));
+                                    });
+                                    ui.label(format!("Affected: {} ({})", cve.product, cve.version_affected));
+                                    ui.label(&cve.description);
+                                });
+                                ui.add_space(5.0);
+                            }
+                        });
                     }
                 }
             }

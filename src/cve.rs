@@ -145,3 +145,17 @@ pub fn check_product_cve(product: &str, version: &str) -> Vec<String> {
     }
     results
 }
+
+/// Search CVE database using a general query keyword
+pub fn search_cves(query: &str) -> Vec<CveEntry> {
+    let query_lower = query.to_lowercase();
+    CVE_DB.iter()
+        .filter(|cve| {
+            cve.id.to_lowercase().contains(&query_lower) ||
+            cve.product.to_lowercase().contains(&query_lower) ||
+            cve.description.to_lowercase().contains(&query_lower) ||
+            cve.version_affected.to_lowercase().contains(&query_lower)
+        })
+        .cloned()
+        .collect()
+}

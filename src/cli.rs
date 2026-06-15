@@ -129,6 +129,11 @@ enum Commands {
         #[arg(short, long)]
         output: Option<String>,
     },
+    /// Search offline CVE database by keyword
+    CveSearch {
+        /// The search keyword (e.g. Apache, Nginx, PHP)
+        query: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -394,6 +399,21 @@ async fn main() {
             let out_path = output.unwrap_or_else(|| "report.html".to_string());
             let _ = save_html_report(&result, &out_path);
             println!("✅ Report generated: {}", out_path);
+        }
+        Commands::CveSearch { query } => {
+            println!("🔍 Searching offline CVE database for '{}'...", query);
+            let matches = search_cves(&query);
+            if matches.is_empty() {
+                println!("❌ No matching CVEs found.");
+            } else {
+                println!("✅ Found {} matching CVE(s):", matches.len());
+                for cve in matches {
+                    println!(
+                        "\n📌 {} (CVSS: {})\n   Product: {} (Affected: {})\n   Description: {}\n   Year: {}",
+                        cve.id, cve.cvss_score, cve.product, cve.version_affected, cve.description, cve.published_year
+                    );
+                }
+            }
         }
     }
 }
