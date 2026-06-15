@@ -5,7 +5,6 @@ use crate::scanner::ScanResult;
 use crate::credential::LoginResult;
 use serde_json;
 use std::fs;
-use std::path::Path;
 use chrono::Local;
 
 /// Generate an HTML report from a single scan result
