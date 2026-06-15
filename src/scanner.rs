@@ -78,15 +78,32 @@ impl Default for ScannerConfig {
 
 // ========== Port Scanning ==========
 pub async fn scan_ports(host: &str, ports: &[u16], limiter: &SharedRateLimiter) -> Vec<(u16, String)> {
-    let mut open = Vec::new();
+    use futures::future::join_all;
+    let mut tasks = Vec::new();
     for &port in ports {
-        throttle(limiter).await;
-        let addr = format!("{}:{}", host, port);
-        if tokio::net::TcpStream::connect(&addr).await.is_ok() {
-            let service = get_service_name(port);
-            open.push((port, service.to_string()));
+        let host = host.to_string();
+        let limiter = limiter.clone();
+        tasks.push(tokio::spawn(async move {
+            throttle(&limiter).await;
+            let addr = format!("{}:{}", host, port);
+            if let Ok(Ok(_stream)) = tokio::time::timeout(
+                std::time::Duration::from_millis(1500),
+                tokio::net::TcpStream::connect(&addr)
+            ).await {
+                Some((port, get_service_name(port).to_string()))
+            } else {
+                None
+            }
+        }));
+    }
+    let results = join_all(tasks).await;
+    let mut open = Vec::new();
+    for res in results {
+        if let Ok(Some(item)) = res {
+            open.push(item);
         }
     }
+    open.sort_by_key(|&(p, _)| p);
     open
 }
 
@@ -97,20 +114,36 @@ pub async fn dir_bruteforce(
     wordlist: &[String],
     limiter: &SharedRateLimiter,
 ) -> Vec<String> {
-    let mut found = Vec::new();
+    use futures::future::join_all;
+    let mut tasks = Vec::new();
     for path in wordlist {
-        throttle(limiter).await;
-        let url = match base_url.join(path) {
-            Ok(u) => u,
-            Err(_) => continue,
-        };
-        match client.get(url.clone()).send().await {
-            Ok(resp) => {
-                if resp.status().is_success() {
-                    found.push(url.to_string());
+        let client = client.clone();
+        let base_url = base_url.clone();
+        let path = path.clone();
+        let limiter = limiter.clone();
+        tasks.push(tokio::spawn(async move {
+            throttle(&limiter).await;
+            let url = match base_url.join(&path) {
+                Ok(u) => u,
+                Err(_) => return None,
+            };
+            match client.get(url.clone()).send().await {
+                Ok(resp) => {
+                    if resp.status().is_success() {
+                        Some(url.to_string())
+                    } else {
+                        None
+                    }
                 }
+                Err(_) => None,
             }
-            Err(_) => continue,
+        }));
+    }
+    let results = join_all(tasks).await;
+    let mut found = Vec::new();
+    for res in results {
+        if let Ok(Some(url)) = res {
+            found.push(url);
         }
     }
     found
@@ -122,7 +155,6 @@ pub async fn sql_injection_test(
     base_url: &Url,
     limiter: &SharedRateLimiter,
 ) -> Vec<String> {
-    let mut vuln = Vec::new();
     let payloads = vec![
         "'",
         "1' OR '1'='1",
@@ -138,31 +170,48 @@ pub async fn sql_injection_test(
     ];
     let params = vec!["id", "page", "cat", "product", "user", "post", "article", "news", "q", "search"];
 
+    use futures::future::join_all;
+    let mut tasks = Vec::new();
     for param in params {
         for payload in &payloads {
-            throttle(limiter).await;
-            let mut url = base_url.clone();
-            url.query_pairs_mut().append_pair(param, payload);
-            match client.get(url.clone()).send().await {
-                Ok(resp) => {
-                    let body = resp.text().await.unwrap_or_default().to_lowercase();
-                    if body.contains("sql") || body.contains("mysql") || body.contains("syntax")
-                        || body.contains("unclosed") || body.contains("odbc")
-                        || body.contains("oracle") || body.contains("postgresql") {
-                        vuln.push(url.to_string());
-                        break;
+            let client = client.clone();
+            let base_url = base_url.clone();
+            let param = param.to_string();
+            let payload = payload.to_string();
+            let limiter = limiter.clone();
+            tasks.push(tokio::spawn(async move {
+                throttle(&limiter).await;
+                let mut url = base_url.clone();
+                url.query_pairs_mut().append_pair(&param, &payload);
+                match client.get(url.clone()).send().await {
+                    Ok(resp) => {
+                        let body = resp.text().await.unwrap_or_default().to_lowercase();
+                        if body.contains("sql") || body.contains("mysql") || body.contains("syntax")
+                            || body.contains("unclosed") || body.contains("odbc")
+                            || body.contains("oracle") || body.contains("postgresql") {
+                            Some(url.to_string())
+                        } else {
+                            None
+                        }
                     }
+                    Err(_) => None,
                 }
-                Err(_) => continue,
-            }
+            }));
         }
     }
+    let results = join_all(tasks).await;
+    let mut vuln = Vec::new();
+    for res in results {
+        if let Ok(Some(url)) = res {
+            vuln.push(url);
+        }
+    }
+    vuln.dedup();
     vuln
 }
 
 // ========== XSS ==========
 pub async fn xss_test(client: &Client, base_url: &Url, limiter: &SharedRateLimiter) -> Vec<String> {
-    let mut vuln = Vec::new();
     let payloads = vec![
         "<script>alert(1)</script>",
         "<img src=x onerror=alert(1)>",
@@ -179,25 +228,43 @@ pub async fn xss_test(client: &Client, base_url: &Url, limiter: &SharedRateLimit
     ];
     let params = vec!["search", "q", "s", "keyword", "name", "query", "term", "text", "comment"];
 
+    use futures::future::join_all;
+    let mut tasks = Vec::new();
     for param in params {
         for payload in &payloads {
-            throttle(limiter).await;
-            let mut url = base_url.clone();
-            url.query_pairs_mut().append_pair(param, payload);
-            match client.get(url.clone()).send().await {
-                Ok(resp) => {
-                    let body = resp.text().await.unwrap_or_default().to_lowercase();
-                    if body.contains("<script") || body.contains("onerror")
-                        || body.contains("alert") || body.contains("javascript:")
-                        || body.contains("confirm") {
-                        vuln.push(url.to_string());
-                        break;
+            let client = client.clone();
+            let base_url = base_url.clone();
+            let param = param.to_string();
+            let payload = payload.to_string();
+            let limiter = limiter.clone();
+            tasks.push(tokio::spawn(async move {
+                throttle(&limiter).await;
+                let mut url = base_url.clone();
+                url.query_pairs_mut().append_pair(&param, &payload);
+                match client.get(url.clone()).send().await {
+                    Ok(resp) => {
+                        let body = resp.text().await.unwrap_or_default().to_lowercase();
+                        if body.contains("<script") || body.contains("onerror")
+                            || body.contains("alert") || body.contains("javascript:")
+                            || body.contains("confirm") {
+                            Some(url.to_string())
+                        } else {
+                            None
+                        }
                     }
+                    Err(_) => None,
                 }
-                Err(_) => continue,
-            }
+            }));
         }
     }
+    let results = join_all(tasks).await;
+    let mut vuln = Vec::new();
+    for res in results {
+        if let Ok(Some(url)) = res {
+            vuln.push(url);
+        }
+    }
+    vuln.dedup();
     vuln
 }
 
@@ -210,12 +277,29 @@ pub async fn subdomain_enum(domain: &str, limiter: &SharedRateLimiter) -> Vec<St
         "assets", "media", "video", "stream", "chat", "support", "help", "docs",
         "wiki", "news", "forum", "community", "store", "shop", "buy", "cart",
     ];
-    let mut found = Vec::new();
+    use futures::future::join_all;
+    let mut tasks = Vec::new();
     for prefix in prefixes {
-        throttle(limiter).await;
-        let sub = format!("{}.{}", prefix, domain);
-        let addr = format!("{}:80", sub);
-        if tokio::net::TcpStream::connect(&addr).await.is_ok() {
+        let domain = domain.to_string();
+        let limiter = limiter.clone();
+        tasks.push(tokio::spawn(async move {
+            throttle(&limiter).await;
+            let sub = format!("{}.{}", prefix, domain);
+            let addr = format!("{}:80", sub);
+            if let Ok(Ok(_stream)) = tokio::time::timeout(
+                std::time::Duration::from_millis(1500),
+                tokio::net::TcpStream::connect(&addr)
+            ).await {
+                Some(sub)
+            } else {
+                None
+            }
+        }));
+    }
+    let results = join_all(tasks).await;
+    let mut found = Vec::new();
+    for res in results {
+        if let Ok(Some(sub)) = res {
             found.push(sub);
         }
     }

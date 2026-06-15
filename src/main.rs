@@ -102,7 +102,7 @@ impl Default for UltimateApp {
             scan_rate: 10,
             scan_proxy: String::new(),
             scan_wordlist_path: String::new(),
-            scan_timeout: 8,
+            scan_timeout: 3,
             scan_result: None,
             scan_in_progress: false,
             scan_progress: 0.0,
