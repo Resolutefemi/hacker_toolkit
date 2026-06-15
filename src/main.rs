@@ -3,7 +3,7 @@
 
 use eframe::egui;
 use egui::{RichText, Color32, ProgressBar, ScrollArea};
-use ultimate_hacker_toolkit::*;
+use htool::*;
 use mimalloc::MiMalloc;
 
 #[global_allocator]
