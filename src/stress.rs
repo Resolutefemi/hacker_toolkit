@@ -1,12 +1,10 @@
 //! Stress testing module for DDoS simulation (authorised testing only)
 //! HTTP flood, Slowloris, UDP flood, SYN flood simulation.
 
-use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::{Duration, sleep};
 use futures::future::join_all;
-use rand::Rng;
 use rand::seq::SliceRandom;
 use crate::utils::{random_user_agent, build_http_client};
 

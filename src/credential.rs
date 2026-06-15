@@ -2,12 +2,10 @@
 //! Mass login attempts using username/password wordlists.
 //! Supports proxy rotation, rate limiting, and result logging.
 
-use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::time::Duration;
 use rand::seq::SliceRandom;
-use crate::utils::{throttle, SharedRateLimiter, build_http_client, load_proxy_list};
+use crate::utils::{throttle, build_http_client};
 
 /// Result of a credential stuffing attempt
 #[derive(Debug, Clone)]
@@ -88,7 +86,7 @@ pub async fn credential_stuffing(
                 
                 // Get proxy if available
                 let proxy_opt = {
-                    let mut prox = proxies_clone.lock().await;
+                    let prox = proxies_clone.lock().await;
                     prox.choose(&mut rand::thread_rng()).cloned()
                 };
                 

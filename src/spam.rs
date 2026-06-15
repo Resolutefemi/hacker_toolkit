@@ -23,7 +23,7 @@ pub async fn flood_database(
     let mut tasks = vec![];
     let mut successful = 0;
 
-    for i in 0..count {
+    for _ in 0..count {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let c = client.clone();
         let url = endpoint.to_string();
@@ -75,11 +75,10 @@ pub async fn email_bomber(
 
     for i in 0..count {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
-        let c = client.clone();
         let lim = rate_limiter.clone();
         let email = target_email.to_string();
         let subj = subject.replace("__NUM__", &i.to_string());
-        let body = body_template.replace("__NUM__", &i.to_string());
+        let _body = body_template.replace("__NUM__", &i.to_string());
 
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
@@ -116,11 +115,10 @@ pub async fn sms_bomber(
 
     for i in 0..count {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
-        let c = client.clone();
         let lim = rate_limiter.clone();
         let phone = target_phone.to_string();
         let msg = message_template.replace("__NUM__", &i.to_string());
-        let key = api_key.map(|s| s.to_string());
+        let _key = api_key.map(|s| s.to_string());
 
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
