@@ -360,7 +360,7 @@ impl eframe::App for UltimateApp {
                     });
                     ui.horizontal(|ui| {
                         ui.label("Attack type:");
-                        egui::ComboBox::from_label("").selected_text(&self.stress_attack).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_source("stress_attack_combo").selected_text(&self.stress_attack).show_ui(ui, |ui| {
                             for attack in &["http", "http-random", "slowloris", "udp", "syn", "advanced", "icmp"] {
                                 ui.selectable_value(&mut self.stress_attack, attack.to_string(), *attack);
                             }
@@ -525,13 +525,13 @@ impl eframe::App for UltimateApp {
                     ui.heading("📡 Payload Generator");
                     ui.horizontal(|ui| {
                         ui.label("Type:");
-                        egui::ComboBox::from_label("").selected_text(&self.payload_type).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_source("payload_type_combo").selected_text(&self.payload_type).show_ui(ui, |ui| {
                             for t in &["reverse", "bind", "webshell", "downloadexec"] {
                                 ui.selectable_value(&mut self.payload_type, t.to_string(), *t);
                             }
                         });
                         ui.label("Platform:");
-                        egui::ComboBox::from_label("").selected_text(&self.payload_platform).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_source("payload_platform_combo").selected_text(&self.payload_platform).show_ui(ui, |ui| {
                             for p in &["linux", "windows", "python", "php", "nodejs", "ruby", "perl"] {
                                 ui.selectable_value(&mut self.payload_platform, p.to_string(), *p);
                             }
@@ -670,6 +670,12 @@ impl eframe::App for UltimateApp {
 }
 
 fn main() -> eframe::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])

