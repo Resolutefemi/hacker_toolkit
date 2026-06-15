@@ -324,7 +324,7 @@ impl eframe::App for UltimateApp {
                         ui.add(ProgressBar::new(self.scan_progress).text(format!("{:.0}%", self.scan_progress * 100.0)));
                         ui.spinner();
                     }
-                    if let Some(result) = &self.scan_result {
+                    if let Some(result) = self.scan_result.clone() {
                         ui.separator();
                         ui.heading("Results");
                         ui.label(format!("Open ports: {:?}", result.open_ports));
