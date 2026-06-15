@@ -338,14 +338,14 @@ impl eframe::App for UltimateApp {
                             if ui.button("📄 Export HTML Report").clicked() {
                                 if let Some(path) = rfd::FileDialog::new().add_filter("HTML Files", &["html"]).save_file() {
                                     let path_str = path.display().to_string();
-                                    let _ = save_html_report(result, &path_str);
+                                    let _ = save_html_report(&result, &path_str);
                                     self.add_log(format!("HTML report exported to {}", path_str));
                                 }
                             }
                             if ui.button("💾 Export JSON Report").clicked() {
                                 if let Some(path) = rfd::FileDialog::new().add_filter("JSON Files", &["json"]).save_file() {
                                     let path_str = path.display().to_string();
-                                    let _ = save_json_report(result, &path_str);
+                                    let _ = save_json_report(&result, &path_str);
                                     self.add_log(format!("JSON report exported to {}", path_str));
                                 }
                             }
