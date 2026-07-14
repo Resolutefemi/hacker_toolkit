@@ -41,11 +41,6 @@ function Hero() {
     <section className="min-h-screen flex items-center justify-center relative pt-16 scan-line">
       <div className="matrix-bg" />
       <div className="max-w-6xl mx-auto px-4 text-center relative z-10">
-        <div className="inline-block mb-4">
-          <span className="text-xs font-mono text-matrix-500 bg-matrix-500/10 px-3 py-1 rounded-full border border-matrix-500/30">
-            ● ENGINE ACTIVE — v3.0.0
-          </span>
-        </div>
         <h1 className="text-5xl md:text-7xl font-bold mb-6">
           <span className="text-matrix-500 glitch" data-text="htool">htool</span>
           <br />
@@ -179,9 +174,9 @@ function TechStack() {
 function Download() {
   const os = useOs()
   const downloads = [
-    { os: 'windows', label: 'Windows', icon: '🪟', desc: 'htool-gui.exe (GUI) + htool.exe (CLI)', coming: false },
-    { os: 'linux', label: 'Linux', icon: '🐧', desc: 'htool-gui (GUI) + htool (CLI)', coming: false },
-    { os: 'macos', label: 'macOS', icon: '🍎', desc: 'htool-gui (GUI) + htool (CLI)', coming: false },
+    { os: 'windows', label: 'Windows', icon: '🪟', desc: 'htool-gui.exe (GUI) + htool.exe (CLI)', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-pc-windows-msvc.zip' },
+    { os: 'linux', label: 'Linux', icon: '🐧', desc: 'htool-gui (GUI) + htool (CLI)', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-unknown-linux-gnu.tar.gz' },
+    { os: 'macos', label: 'macOS', icon: '🍎', desc: 'htool-gui (GUI) + htool (CLI)', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-apple-darwin.tar.gz' },
   ]
 
   return (
@@ -211,9 +206,12 @@ function Download() {
                     Coming Soon
                   </span>
                 ) : (
-                  <span className="inline-block bg-matrix-500 text-black px-6 py-3 rounded-lg font-bold hover:bg-matrix-400 transition-all cursor-pointer btn-flash shadow-lg shadow-matrix-500/25">
+                  <a href={d.url}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="inline-block bg-matrix-500 text-black px-6 py-3 rounded-lg font-bold hover:bg-matrix-400 transition-all btn-flash shadow-lg shadow-matrix-500/25">
                     ⬇ Download for {d.label}
-                  </span>
+                  </a>
                 )}
               </div>
             )

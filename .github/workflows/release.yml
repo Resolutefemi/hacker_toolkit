@@ -1,0 +1,187 @@
+# ─── htool CI/CD Pipeline ──────────────────────────────────
+# Builds for Windows, Linux, macOS on every push to main
+# Creates a GitHub Release when a tag (v*) is pushed
+# ───────────────────────────────────────────────────────────
+
+name: htool CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ─── Check / Lint ──────────────────────────────────────────
+  check:
+    name: cargo check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+      - name: Check
+        run: cargo check --verbose
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+  # ─── Build & Test ─────────────────────────────────────────
+  build:
+    name: build (${{ matrix.target }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: .exe
+            archive: zip
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            ext: ""
+            archive: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build CLI (htool)
+        run: cargo build --release --target ${{ matrix.target }} --bin htool
+
+      - name: Build GUI (htool-gui)
+        run: cargo build --release --target ${{ matrix.target }} --bin htool-gui
+
+      - name: Prepare artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path staging -Force
+          Copy-Item "target/${{ matrix.target }}/release/htool.exe" staging/
+          Copy-Item "target/${{ matrix.target }}/release/htool-gui.exe" staging/
+          Copy-Item assets/wordlist.txt staging/
+          Compress-Archive -Path staging/* -DestinationPath "htool-${{ matrix.target }}.zip"
+
+      - name: Prepare artifacts (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p staging
+          cp "target/${{ matrix.target }}/release/htool" staging/
+          cp "target/${{ matrix.target }}/release/htool-gui" staging/
+          cp assets/wordlist.txt staging/
+          tar czf "htool-${{ matrix.target }}.tar.gz" -C staging .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: htool-${{ matrix.target }}
+          path: htool-${{ matrix.target }}.*
+          retention-days: 30
+
+  # ─── Create Release ───────────────────────────────────────
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          find artifacts -type f
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ github.ref_name }}"
+          echo "## htool $VERSION" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Downloads" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "| Platform | Download |" >> release-notes.md
+          echo "|----------|----------|" >> release-notes.md
+
+          for f in artifacts/*/*.zip; do
+            NAME=$(basename "$f")
+            echo "| Windows | \`$NAME\` |" >> release-notes.md
+          done
+          for f in artifacts/*/*.tar.gz; do
+            NAME=$(basename "$f")
+            if echo "$NAME" | grep -q "linux"; then
+              echo "| Linux | \`$NAME\` |" >> release-notes.md
+            elif echo "$NAME" | grep -q "apple"; then
+              echo "| macOS | \`$NAME\` |" >> release-notes.md
+            fi
+          done
+
+          echo "" >> release-notes.md
+          echo "### Changelog" >> release-notes.md
+          echo "- See commits for full changelog" >> release-notes.md
+          cat release-notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: htool ${{ github.ref_name }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Deploy Website to Cloudflare Pages ──────────────────
+  deploy-site:
+    name: Deploy Website
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build website
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: website
+          command: pages deploy out --project-name=htoolapp --branch=main
