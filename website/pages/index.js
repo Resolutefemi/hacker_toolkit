@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   IconScanner, IconStress, IconCredential, IconSpam,
   IconPayload, IconReport, IconCve, IconHtmlViewer, IconWaf,
-  OsWindows, OsMacos, OsLinux, LionIcon
+  OsWindows, OsMacos, OsLinux, HIcon
 } from '../components/icons'
 
 // ─── OS Detection Hook ───
@@ -27,7 +27,7 @@ function Header() {
       <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <LionIcon className="w-7 h-7 sm:w-8 sm:h-8" />
+            <HIcon className="w-7 h-7 sm:w-8 sm:h-8" />
             <span className="text-matrix-500 text-xl sm:text-2xl font-bold font-mono">htool</span>
           </div>
           <span className="text-cyber-dim text-xs hidden sm:block font-mono">v3.0</span>
@@ -341,7 +341,7 @@ function Author() {
         </h2>
         <div className="bg-cyber-card rounded-xl p-6 sm:p-8 md:p-12 border border-cyber-dim/20 mx-2 sm:mx-0">
           <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-matrix-500 to-cyber-cyan flex items-center justify-center p-4">
-            <LionIcon className="w-full h-full" />
+            <HIcon className="w-full h-full" />
           </div>
           <h3 className="text-2xl font-bold text-cyber-bright mb-2">Resolute Femi</h3>
           <p className="text-matrix-500 font-mono mb-4">@Resolutefemi</p>

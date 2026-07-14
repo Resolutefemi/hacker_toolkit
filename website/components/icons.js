@@ -116,14 +116,8 @@ export function OsWindows({ className = "w-8 h-8" }) {
 export function OsMacos({ className = "w-8 h-8" }) {
   return (
     <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Apple silhouette */}
-      <path
-        d="M36 24 C36 16 30 12 24 8 C18 12 12 16 12 24 C12 32 18 40 24 44 C30 40 36 32 36 24Z"
-        stroke="#00ff41" strokeWidth="2" fill="none"
-      />
-      {/* Leaf */}
+      <path d="M36 24 C36 16 30 12 24 8 C18 12 12 16 12 24 C12 32 18 40 24 44 C30 40 36 32 36 24Z" stroke="#00ff41" strokeWidth="2" fill="none" />
       <path d="M24 8 C26 4 30 4 32 6" stroke="#0aefff" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      {/* Bite */}
       <path d="M32 28 C34 26 34 22 32 20" stroke="#080c16" strokeWidth="3" fill="none" />
     </svg>
   )
@@ -132,78 +126,32 @@ export function OsMacos({ className = "w-8 h-8" }) {
 export function OsLinux({ className = "w-8 h-8" }) {
   return (
     <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Tux penguin silhouette */}
       <ellipse cx="24" cy="26" rx="14" ry="16" stroke="#00ff41" strokeWidth="2" fill="none" />
-      {/* Head */}
       <circle cx="24" cy="18" r="10" stroke="#00ff41" strokeWidth="2" fill="none" />
-      {/* Eyes */}
       <circle cx="20" cy="16" r="2.5" fill="#0aefff" opacity="0.8" />
       <circle cx="28" cy="16" r="2.5" fill="#0aefff" opacity="0.8" />
-      {/* Beak */}
       <polygon points="22,20 26,20 24,23" fill="#ffa500" opacity="0.7" />
-      {/* Tummy */}
       <ellipse cx="24" cy="30" rx="8" ry="8" stroke="#0aefff" strokeWidth="1" fill="none" opacity="0.4" />
-      {/* Feet */}
       <path d="M14 40 L10 44 M10 42 L18 42" stroke="#ffa500" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
       <path d="M34 40 L38 44 M38 42 L30 42" stroke="#ffa500" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
     </svg>
   )
 }
 
-// ─── Brand Lion Icon ──────────────────────────────────────
-// Clean professional lion head in circle for app branding
-export function LionIcon({ className = "w-8 h-8" }) {
+// ─── Brand H Icon ─────────────────────────────────────────
+// Simple green H with red underline for app branding
+export function HIcon({ className = "w-8 h-8" }) {
   return (
     <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Background circle */}
-      <circle cx="50" cy="50" r="48" fill="#080c16" stroke="#00ff41" strokeWidth="3" />
-      <circle cx="50" cy="50" r="45" stroke="#0aefff" strokeWidth="0.5" opacity="0.2" />
-
-      {/* Mane - simplified ring */}
-      <g stroke="#00ff41" strokeWidth="1.5" fill="none" opacity="0.5">
-        <line x1="50" y1="12" x2="50" y2="18" />
-        <line x1="72" y1="18" x2="68" y2="23" />
-        <line x1="86" y1="36" x2="80" y2="38" />
-        <line x1="88" y1="56" x2="82" y2="54" />
-        <line x1="78" y1="74" x2="73" y2="70" />
-        <line x1="62" y1="84" x2="60" y2="78" />
-        <line x1="38" y1="84" x2="40" y2="78" />
-        <line x1="22" y1="74" x2="27" y2="70" />
-        <line x1="12" y1="56" x2="18" y2="54" />
-        <line x1="14" y1="36" x2="20" y2="38" />
-        <line x1="28" y1="18" x2="32" y2="23" />
-      </g>
-
-      {/* Lion face */}
-      <circle cx="50" cy="48" r="22" fill="#0c1220" stroke="#0aefff" strokeWidth="1" opacity="0.7" />
-
-      {/* Ears */}
-      <ellipse cx="32" cy="32" rx="7" ry="5" stroke="#00ff41" strokeWidth="1.5" fill="none" opacity="0.6" />
-      <ellipse cx="68" cy="32" rx="7" ry="5" stroke="#00ff41" strokeWidth="1.5" fill="none" opacity="0.6" />
-
-      {/* Eyes */}
-      <ellipse cx="39" cy="44" rx="5" ry="4" fill="none" stroke="#0aefff" strokeWidth="1.5" />
-      <ellipse cx="61" cy="44" rx="5" ry="4" fill="none" stroke="#0aefff" strokeWidth="1.5" />
-      <circle cx="39" cy="44" r="2.5" fill="#0aefff" opacity="0.9" />
-      <circle cx="61" cy="44" r="2.5" fill="#0aefff" opacity="0.9" />
-      <circle cx="39" cy="44" r="1" fill="#00ff41" />
-      <circle cx="61" cy="44" r="1" fill="#00ff41" />
-
-      {/* Nose */}
-      <polygon points="50,50 46,54 54,54" fill="#00ff41" opacity="0.8" />
-
-      {/* Mouth */}
-      <path d="M44 56 Q50 62 56 56" stroke="#00ff41" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      <line x1="50" y1="54" x2="50" y2="58" stroke="#00ff41" strokeWidth="1" />
-
-      {/* Whiskers */}
-      <line x1="18" y1="48" x2="32" y2="50" stroke="#0aefff" strokeWidth="1" opacity="0.3" />
-      <line x1="18" y1="52" x2="32" y2="52" stroke="#0aefff" strokeWidth="1" opacity="0.3" />
-      <line x1="82" y1="48" x2="68" y2="50" stroke="#0aefff" strokeWidth="1" opacity="0.3" />
-      <line x1="82" y1="52" x2="68" y2="52" stroke="#0aefff" strokeWidth="1" opacity="0.3" />
-
-      {/* Forehead mark */}
-      <text x="46" y="37" fill="#00ff41" fontSize="5" fontFamily="monospace" opacity="0.4" letterSpacing="1">01</text>
+      {/* Dark background */}
+      <rect x="4" y="4" width="92" height="92" rx="16" fill="#080c16" stroke="#00ff41" strokeWidth="2" />
+      
+      {/* Green H letter */}
+      <text x="50" y="68" fontFamily="monospace" fontSize="60" fontWeight="bold" 
+            fill="#00ff41" textAnchor="middle" letterSpacing="2">H</text>
+      
+      {/* Red underline */}
+      <line x1="22" y1="78" x2="78" y2="78" stroke="#ff0055" strokeWidth="3.5" strokeLinecap="round"/>
     </svg>
   )
 }
