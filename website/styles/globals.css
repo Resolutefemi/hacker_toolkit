@@ -26,9 +26,9 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* Cyberpunk scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -37,136 +37,11 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #00ff41;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #0aefff;
-}
-
-/* Glitch text effect */
-.glitch {
-  position: relative;
-}
-
-.glitch::before,
-.glitch::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.glitch::before {
-  color: var(--neon-pink);
-  z-index: -1;
-  animation: glitch-shift 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
-}
-
-.glitch::after {
-  color: var(--cyber-cyan);
-  z-index: -2;
-  animation: glitch-shift 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both infinite;
-}
-
-@keyframes glitch-shift {
-  0% { transform: translate(0); }
-  20% { transform: translate(-2px, 2px); }
-  40% { transform: translate(-2px, -2px); }
-  60% { transform: translate(2px, 2px); }
-  80% { transform: translate(2px, -2px); }
-  100% { transform: translate(0); }
-}
-
-/* Matrix rain effect container */
-.matrix-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.03;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 255, 65, 0.1) 2px,
-    rgba(0, 255, 65, 0.1) 4px
-  );
-}
-
-/* Card glow */
-.card-glow {
-  position: relative;
-  overflow: hidden;
-}
-
-.card-glow::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: conic-gradient(
-    transparent,
-    rgba(0, 255, 65, 0.1),
-    transparent 30%,
-    transparent 70%,
-    rgba(10, 239, 255, 0.1),
-    transparent
-  );
-  animation: rotate-glow 4s linear infinite;
-}
-
-@keyframes rotate-glow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Scan line effect */
-.scan-line {
-  position: relative;
-  overflow: hidden;
-}
-
-.scan-line::after {
-  content: '';
-  position: absolute;
-  top: -10%;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #00ff41, transparent);
-  animation: scan 3s linear infinite;
-  opacity: 0.5;
-}
-
-@keyframes scan {
-  0% { top: -10%; }
-  100% { top: 110%; }
-}
-
-/* Terminal typing */
-.typing {
-  overflow: hidden;
-  border-right: 2px solid var(--matrix-green);
-  white-space: nowrap;
-  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
-}
-
-@keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-@keyframes blink-caret {
-  from, to { border-color: transparent; }
-  50% { border-color: var(--matrix-green); }
 }
 
 /* Button flash */
@@ -225,10 +100,42 @@ body {
   line-height: 1.6;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* Tiny text utility for labels */
+.text-2xs {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+}
+
+/* Mobile matrix-bg is lighter to not dominate */
+@media (max-width: 640px) {
+  .matrix-bg {
+    opacity: 0.02;
+  }
+  
+  .terminal-content {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  
   .glitch::before,
   .glitch::after {
     display: none;
+  }
+  
+  .scan-line::after {
+    height: 1px;
+    opacity: 0.3;
+  }
+  
+  /* Smaller animation overhead on mobile */
+  .card-glow::before {
+    animation-duration: 6s;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .terminal-content {
+    font-size: 13px;
   }
 }
