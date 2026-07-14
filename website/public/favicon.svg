@@ -4,8 +4,86 @@
       <stop offset="0%" style="stop-color:#080c16"/>
       <stop offset="100%" style="stop-color:#0c1220"/>
     </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="100" height="100" rx="20" fill="url(#bg)" stroke="#00ff41" stroke-width="3"/>
-  <text x="50" y="68" font-family="monospace" font-size="55" font-weight="bold" fill="#00ff41" text-anchor="middle" letter-spacing="2">H</text>
-  <line x1="20" y1="82" x2="80" y2="82" stroke="#ff0055" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Background circle with dark theme -->
+  <circle cx="50" cy="50" r="48" fill="url(#bg)" stroke="#00ff41" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="44" stroke="#0aefff" stroke-width="0.5" opacity="0.2"/>
+
+  <!-- Mane spikes -->
+  <g stroke="#00ff41" stroke-width="1.5" fill="none" opacity="0.7">
+    <line x1="50" y1="6" x2="50" y2="14"/>
+    <line x1="74" y1="12" x2="68" y2="19"/>
+    <line x1="90" y1="30" x2="82" y2="34"/>
+    <line x1="94" y1="52" x2="86" y2="50"/>
+    <line x1="88" y1="74" x2="82" y2="68"/>
+    <line x1="68" y1="90" x2="64" y2="82"/>
+    <line x1="44" y1="94" x2="46" y2="86"/>
+    <line x1="24" y1="86" x2="30" y2="78"/>
+    <line x1="10" y1="68" x2="16" y2="64"/>
+    <line x1="6" y1="46" x2="14" y2="48"/>
+    <line x1="16" y1="24" x2="24" y2="30"/>
+    <line x1="34" y1="10" x2="36" y2="18"/>
+  </g>
+
+  <!-- Mane glow triangles -->
+  <g fill="#00ff41" opacity="0.12">
+    <polygon points="50,4 46,14 54,14"/>
+    <polygon points="80,16 72,22 82,22"/>
+    <polygon points="92,36 84,40 88,48"/>
+    <polygon points="92,62 84,58 88,52"/>
+    <polygon points="76,84 70,76 80,78"/>
+    <polygon points="50,96 48,86 56,86"/>
+    <polygon points="22,84 28,76 20,78"/>
+    <polygon points="8,62 16,58 12,52"/>
+    <polygon points="8,36 16,40 12,48"/>
+    <polygon points="20,16 28,22 18,22"/>
+  </g>
+
+  <!-- Lion face -->
+  <circle cx="50" cy="48" r="20" fill="#0c1220" stroke="#0aefff" stroke-width="1" opacity="0.9"/>
+
+  <!-- Ears -->
+  <ellipse cx="34" cy="34" rx="6" ry="5" stroke="#00ff41" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <ellipse cx="66" cy="34" rx="6" ry="5" stroke="#00ff41" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <circle cx="34" cy="34" r="2.5" fill="#0aefff" opacity="0.25"/>
+  <circle cx="66" cy="34" r="2.5" fill="#0aefff" opacity="0.25"/>
+
+  <!-- Cyberpunk glowing eyes -->
+  <ellipse cx="40" cy="44" rx="4.5" ry="3.5" fill="none" stroke="#0aefff" stroke-width="1.2"/>
+  <ellipse cx="60" cy="44" rx="4.5" ry="3.5" fill="none" stroke="#0aefff" stroke-width="1.2"/>
+  <circle cx="40" cy="44" r="2" fill="#0aefff" filter="url(#glow)"/>
+  <circle cx="60" cy="44" r="2" fill="#0aefff" filter="url(#glow)"/>
+  <circle cx="40" cy="44" r="0.8" fill="#00ff41"/>
+  <circle cx="60" cy="44" r="0.8" fill="#00ff41"/>
+
+  <!-- Nose -->
+  <polygon points="50,50 47,53 53,53" fill="#00ff41" opacity="0.8"/>
+
+  <!-- Mouth -->
+  <path d="M45 55 Q50 60 55 55" stroke="#00ff41" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+  <line x1="50" y1="53" x2="50" y2="57" stroke="#00ff41" stroke-width="0.8"/>
+
+  <!-- Whiskers -->
+  <line x1="22" y1="46" x2="33" y2="49" stroke="#0aefff" stroke-width="0.8" opacity="0.35"/>
+  <line x1="22" y1="51" x2="33" y2="51" stroke="#0aefff" stroke-width="0.8" opacity="0.35"/>
+  <line x1="78" y1="46" x2="67" y2="49" stroke="#0aefff" stroke-width="0.8" opacity="0.35"/>
+  <line x1="78" y1="51" x2="67" y2="51" stroke="#0aefff" stroke-width="0.8" opacity="0.35"/>
+
+  <!-- Tech marks on forehead -->
+  <text x="45" y="38" fill="#00ff41" font-size="4" font-family="monospace" opacity="0.5" font-weight="bold">01</text>
+  <circle cx="44" cy="30" r="0.8" fill="#00ff41" opacity="0.4"/>
+  <circle cx="56" cy="30" r="0.8" fill="#00ff41" opacity="0.4"/>
+
+  <!-- Neon accent marks -->
+  <line x1="72" y1="48" x2="76" y2="48" stroke="#ff0055" stroke-width="1" opacity="0.5" stroke-linecap="round"/>
+  <line x1="24" y1="48" x2="28" y2="48" stroke="#ff0055" stroke-width="1" opacity="0.5" stroke-linecap="round"/>
 </svg>

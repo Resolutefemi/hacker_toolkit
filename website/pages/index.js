@@ -1,5 +1,9 @@
 import Head from 'next/head'
 import { useState, useEffect } from 'react'
+import {
+  IconScanner, IconStress, IconCredential, IconSpam,
+  IconPayload, IconReport, IconCve, IconHtmlViewer, IconWaf
+} from '../components/icons'
 
 // ─── OS Detection Hook ───
 function useOs() {
@@ -97,15 +101,15 @@ function Hero() {
 // ─── Features ───
 function Features() {
   const features = [
-    { icon: '🔍', title: 'Vulnerability Scanner', desc: 'Port scanning, SQLi, XSS, directory brute-forcing, subdomain enumeration, SSL/TLS analysis, security headers audit, and offline CVE matching with 100+ technology fingerprint signatures.' },
-    { icon: '⚡', title: 'Stress Testing', desc: 'HTTP flood, Slowloris, UDP flood, SYN flood simulation, advanced HTTP with random methods. Full authorised testing suite.' },
-    { icon: '⚷', title: 'Credential Stuffing', desc: 'Mass login testing with wordlists, proxy rotation, rate limiting, and detailed result logging with success detection.' },
-    { icon: '◉', title: 'Spam & Flood', desc: 'Database flooding, email bomber, SMS bomber, comment spam, and registration spam with real HTTP request support.' },
-    { icon: '◎', title: 'Payload Generator', desc: 'Reverse shells for Linux/Windows/Python/PHP/Node.js/Ruby/Perl, bind shells, PHP web shells, download & execute payloads.' },
-    { icon: '▣', title: 'Report Generation', desc: 'Beautiful HTML and JSON reports with full vulnerability details, technology stack analysis, and export to file.' },
-    { icon: '◈', title: 'CVE Database', desc: 'Built-in offline CVE database with 50+ entries. Search by product, version, keyword, or CVSS score.' },
-    { icon: '◈', title: 'HTML Viewer', desc: 'Built-in HTML report viewer with preview, save, and open in browser functionality.' },
-    { icon: '🛡️', title: 'WAF Detection', desc: 'Active Web Application Firewall detection. Identifies Cloudflare, Sucuri, ModSecurity, AWS WAF, Imperva, and more.' },
+    { icon: IconScanner, title: 'Vulnerability Scanner', desc: 'Port scanning, SQLi, XSS, directory brute-forcing, subdomain enumeration, SSL/TLS analysis, security headers audit, and offline CVE matching with 100+ technology fingerprint signatures.' },
+    { icon: IconStress, title: 'Stress Testing', desc: 'HTTP flood, Slowloris, UDP flood, SYN flood simulation, advanced HTTP with random methods. Full authorised testing suite.' },
+    { icon: IconCredential, title: 'Credential Stuffing', desc: 'Mass login testing with wordlists, proxy rotation, rate limiting, and detailed result logging with success detection.' },
+    { icon: IconSpam, title: 'Spam & Flood', desc: 'Database flooding, email bomber, SMS bomber, comment spam, and registration spam with real HTTP request support.' },
+    { icon: IconPayload, title: 'Payload Generator', desc: 'Reverse shells for Linux/Windows/Python/PHP/Node.js/Ruby/Perl, bind shells, PHP web shells, download & execute payloads.' },
+    { icon: IconReport, title: 'Report Generation', desc: 'Beautiful HTML and JSON reports with full vulnerability details, technology stack analysis, and export to file.' },
+    { icon: IconCve, title: 'CVE Database', desc: 'Built-in offline CVE database with 50+ entries. Search by product, version, keyword, or CVSS score.' },
+    { icon: IconHtmlViewer, title: 'HTML Viewer', desc: 'Built-in HTML report viewer with preview, save, and open in browser functionality.' },
+    { icon: IconWaf, title: 'WAF Detection', desc: 'Active Web Application Firewall detection. Identifies Cloudflare, Sucuri, ModSecurity, AWS WAF, Imperva, and more.' },
   ]
 
   return (
@@ -128,7 +132,7 @@ function Features() {
           {features.map((f, i) => (
             <div key={i} className="card-glow bg-cyber-card rounded-xl p-6 border border-matrix-500/20 hover:border-matrix-500/40 transition-all group">
               <div className="relative z-10">
-                <span className="text-3xl mb-4 block">{f.icon}</span>
+                <div className="mb-4 w-10 h-10"><f.icon className="w-full h-full" /></div>
                 <h3 className="text-cyber-bright font-bold text-lg mb-2 group-hover:text-matrix-500 transition-colors">
                   {f.title}
                 </h3>
