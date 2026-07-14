@@ -17,7 +17,7 @@ enum AppMessage {
     SpamFinished(usize),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum ActiveTab {
     Scanner,
     Stress,
