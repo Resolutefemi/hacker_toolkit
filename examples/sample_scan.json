@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-09-18 10:42:11",
+  "target": "https://demo.testfire.net",
+  "open_ports": [[80, "HTTP"], [443, "HTTPS"], [22, "SSH"], [3306, "MySQL"]],
+  "sql_vulnerable": ["https://demo.testfire.net/search?q=1' OR '1'='1"],
+  "xss_vulnerable": ["https://demo.testfire.net/comment?msg=<script>alert(1)</script>", "https://demo.testfire.net/profile?name=<img src=x onerror=alert(2)>"],
+  "discovered_paths": ["/admin", "/backup.zip", "/.env", "/phpmyadmin", "/robots.txt"],
+  "subdomains": ["mail.demo.testfire.net", "dev.demo.testfire.net"],
+  "ssl_info": "issuer: Self-signed certificate\ncipher: TLS_AES_256_GCM_SHA384\nprotocol: TLSv1.3\nexpires: 2027-01-01\ngrade: B",
+  "security_headers": "Missing: Strict-Transport-Security\nMissing: Content-Security-Policy\nMissing: X-Frame-Options\nPresent: X-Content-Type-Options",
+  "cve_matches": ["CVE-2021-44228 — Apache Log4j2 JNDI lookup RCE (CVSS 10.0)", "CVE-2018-11776 — Apache Struts2 RCE (CVSS 9.8)"],
+  "technologies": ["nginx/1.18.0", "PHP/7.4.3", "jQuery 2.1.1", "[WAF] none detected"],
+  "subdomain_takeovers": ["dev.demo.testfire.net — dangling CNAME → ghost.io"],
+  "zone_transfers": [],
+  "errors": ["timeout reaching :8080"]
+}

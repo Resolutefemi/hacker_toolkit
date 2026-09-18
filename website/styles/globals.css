@@ -4,11 +4,49 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* ─── Theme variables (dark = default, html.light flips everything) ─── */
 :root {
-  --accent: #00e69e;
-  --cyan: #38bdf8;
-  --bg-dark: #05080f;
-  --bg-card: #111729;
+  --m-400: 26 255 185;
+  --m-500: 0 230 158;
+
+  --c-cyan: 56 189 248;
+  --c-orange: 251 146 60;
+  --c-purple: 167 139 250;
+  --c-dark: 5 8 15;
+  --c-deep: 7 11 20;
+  --c-card: 17 23 41;
+  --c-row: 11 17 32;
+  --c-sidebar: 8 13 24;
+  --c-dim: 140 152 178;
+  --c-faint: 96 106 130;
+  --c-bright: 226 232 240;
+
+  --site-text: #e2e8f0;
+  --grid-line: rgba(56, 189, 248, 0.045);
+  --sel-bg: rgba(0, 230, 158, 0.35);
+  --sel-fg: #fff;
+}
+
+html.light {
+  --m-400: 0 196 136;
+  --m-500: 0 178 122;
+
+  --c-cyan: 2 132 199;
+  --c-orange: 234 88 12;
+  --c-purple: 124 58 237;
+  --c-dark: 244 246 250;
+  --c-deep: 236 240 246;
+  --c-card: 255 255 255;
+  --c-row: 240 243 248;
+  --c-sidebar: 255 255 255;
+  --c-dim: 71 85 105;
+  --c-faint: 122 133 155;
+  --c-bright: 23 32 58;
+
+  --site-text: #23304a;
+  --grid-line: rgba(2, 132, 199, 0.07);
+  --sel-bg: rgba(0, 178, 122, 0.28);
+  --sel-fg: #0b1220;
 }
 
 * {
@@ -20,32 +58,33 @@ html {
 }
 
 body {
-  background: var(--bg-dark);
-  color: #e2e8f0;
+  background: rgb(var(--c-dark));
+  color: var(--site-text);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background .3s ease, color .3s ease;
 }
 
 ::selection {
-  background: rgba(0, 230, 158, 0.35);
-  color: #fff;
+  background: var(--sel-bg);
+  color: var(--sel-fg);
 }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #05080f; }
+::-webkit-scrollbar-track { background: rgb(var(--c-dark)); }
 ::-webkit-scrollbar-thumb {
-  background: #1c2a48;
+  background: rgb(var(--c-card));
   border-radius: 8px;
-  border: 2px solid #05080f;
+  border: 2px solid rgb(var(--c-dark));
 }
-::-webkit-scrollbar-thumb:hover { background: #00e69e; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--m-500)); }
 
 /* ─── Grid + gradient backgrounds ─── */
 .bg-grid {
   background-image:
-    linear-gradient(rgba(56, 189, 248, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.045) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 55%, transparent 100%);
 }
@@ -59,6 +98,11 @@ body {
     radial-gradient(ellipse 620px 340px at 78% 18%, rgba(0, 230, 158, 0.12), transparent 65%),
     radial-gradient(ellipse 560px 320px at 12% 8%, rgba(56, 189, 248, 0.10), transparent 65%);
 }
+html.light .hero-glow::before {
+  background:
+    radial-gradient(ellipse 620px 340px at 78% 18%, rgba(0, 178, 122, 0.10), transparent 65%),
+    radial-gradient(ellipse 560px 320px at 12% 8%, rgba(2, 132, 199, 0.08), transparent 65%);
+}
 
 /* ─── Gradient text ─── */
 .text-gradient {
@@ -67,10 +111,16 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+html.light .text-gradient {
+  background: linear-gradient(96deg, #00a37a 10%, #0284c7 55%, #7c3aed 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
 /* ─── Glass surfaces ─── */
 .glass {
-  background: rgba(17, 23, 41, 0.62);
+  background: rgb(var(--c-card) / 0.72);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -84,6 +134,10 @@ body {
   border-color: rgba(0, 230, 158, 0.45);
   transform: translateY(-3px);
   box-shadow: 0 10px 40px rgba(0, 230, 158, 0.10), 0 2px 8px rgba(0,0,0,0.35);
+}
+html.light .card-glow:hover {
+  border-color: rgba(0, 178, 122, 0.55);
+  box-shadow: 0 10px 40px rgba(0, 178, 122, 0.12), 0 2px 8px rgba(11, 18, 32, 0.08);
 }
 
 /* ─── Button flash sweep ─── */
@@ -106,8 +160,21 @@ body {
   transform: skewX(-20deg) translateX(320%);
 }
 
-/* ─── Terminal ─── */
+/* ─── Terminal (stays dark in BOTH themes — it's a terminal) ─── */
 .terminal-window {
+  --m-400: 26 255 185;
+  --m-500: 0 230 158;
+  --c-cyan: 56 189 248;
+  --c-orange: 251 146 60;
+  --c-purple: 167 139 250;
+  --c-dark: 5 8 15;
+  --c-deep: 7 11 20;
+  --c-card: 17 23 41;
+  --c-row: 11 17 32;
+  --c-sidebar: 8 13 24;
+  --c-dim: 140 152 178;
+  --c-faint: 96 106 130;
+  --c-bright: 226 232 240;
   border: 1px solid rgba(0, 230, 158, 0.22);
   border-radius: 12px;
   overflow: hidden;
@@ -152,13 +219,62 @@ body {
   to { transform: translateX(-50%); }
 }
 
-/* ─── App mock (GUI showcase) ─── */
+/* ─── App mock (GUI showcase — stays dark in both themes) ─── */
 .app-mock {
+  --m-400: 26 255 185;
+  --m-500: 0 230 158;
+  --c-cyan: 56 189 248;
+  --c-orange: 251 146 60;
+  --c-purple: 167 139 250;
+  --c-dark: 5 8 15;
+  --c-deep: 7 11 20;
+  --c-card: 17 23 41;
+  --c-row: 11 17 32;
+  --c-sidebar: 8 13 24;
+  --c-dim: 140 152 178;
+  --c-faint: 96 106 130;
+  --c-bright: 226 232 240;
   background: #0a0e1a;
   border: 1px solid #2c3858;
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 30px 90px rgba(0,0,0,0.6), 0 0 60px rgba(0,230,158,0.06);
+}
+
+/* ─── Light-mode overrides for hardcoded utility colors ─── */
+html.light .text-white { color: rgb(23 32 58); }
+html.light .border-white\/5 { border-color: rgb(23 32 58 / 0.08); }
+html.light .border-white\/10 { border-color: rgb(23 32 58 / 0.10); }
+html.light .border-white\/15 { border-color: rgb(23 32 58 / 0.14); }
+html.light .border-white\/20 { border-color: rgb(23 32 58 / 0.18); }
+html.light .bg-white\/8 { background-color: rgb(23 32 58 / 0.05); }
+html.light .bg-white\/12 { background-color: rgb(23 32 58 / 0.07); }
+html.light .bg-white\/10 { background-color: rgb(23 32 58 / 0.06); }
+/* keep whites inside the pinned-dark showpieces */
+html.light .terminal-window .text-white,
+html.light .app-mock .text-white { color: #fff; }
+html.light .terminal-window .border-white,
+html.light .app-mock .border-white { border-color: rgb(255 255 255 / 0.15); }
+
+/* theme toggle button */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 100px;
+  border: 1px solid rgb(var(--m-500) / 0.35);
+  background: rgb(var(--m-500) / 0.10);
+  color: rgb(var(--m-500));
+  cursor: pointer;
+  transition: all .25s ease;
+  font-size: 15px;
+  line-height: 1;
+}
+.theme-toggle:hover {
+  background: rgb(var(--m-500) / 0.22);
+  transform: rotate(12deg);
 }
 
 /* ─── FAQ ─── */

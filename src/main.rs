@@ -1,6 +1,6 @@
 //! htool GUI — Modern Cyber Dashboard built with egui
-//! Redesigned UI: dark neon theme, stat cards, badges, in-app report viewer
-//! with a fully rendered report preview (HTML-style output, not source code).
+//! Redesigned UI: dark neon theme + light theme, stat cards, badges,
+//! in-app report viewer, PDF export and a persistent scan scheduler.
 
 use eframe::egui;
 use egui::{RichText, Color32, Rounding, Stroke, Margin, ProgressBar, ScrollArea};
@@ -11,63 +11,157 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 // ══════════════════════════════════════════════════════════════════
-//  Design System — palette, spacing, helpers
+//  Design System — dual palettes (dark / light), spacing, helpers
 // ══════════════════════════════════════════════════════════════════
 
 mod theme {
     use super::Color32;
-    // Backgrounds (deep navy)
-    pub const BG_DEEP:   Color32 = Color32::from_rgb(5, 8, 17);      // darkest — inputs
-    pub const BG_MAIN:   Color32 = Color32::from_rgb(10, 14, 26);     // central panel
-    pub const BG_PANEL:  Color32 = Color32::from_rgb(8, 11, 21);      // sidebar / top
-    pub const BG_CARD:   Color32 = Color32::from_rgb(17, 23, 41);     // card fill
-    pub const BG_ROW:    Color32 = Color32::from_rgb(23, 30, 52);     // subtle stripe
-    pub const BG_WIDGET: Color32 = Color32::from_rgb(26, 34, 58);     // buttons / fields
-    pub const STROKE:    Color32 = Color32::from_rgb(44, 56, 88);     // borders
-    // Accent — neon emerald + cyan
-    pub const ACCENT:    Color32 = Color32::from_rgb(0, 230, 158);
-    pub const ACCENT_DIM: Color32 = Color32::from_rgba_premultiplied(0, 230, 158, 34);
-    pub const CYAN:      Color32 = Color32::from_rgb(56, 189, 248);
-    pub const PURPLE:    Color32 = Color32::from_rgb(167, 139, 250);
-    // Text
-    pub const TEXT:      Color32 = Color32::from_rgb(226, 232, 240);
-    pub const TEXT_DIM:  Color32 = Color32::from_rgb(140, 152, 178);
-    pub const TEXT_FAINT: Color32 = Color32::from_rgb(96, 106, 130);
-    // Semantic
-    pub const OK:        Color32 = Color32::from_rgb(52, 211, 153);
-    pub const WARN:      Color32 = Color32::from_rgb(251, 191, 36);
-    pub const DANGER:    Color32 = Color32::from_rgb(248, 113, 113);
-    pub const ORANGE:    Color32 = Color32::from_rgb(251, 146, 60);
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    /// Full design palette. Field names intentionally mirror the old constants.
+    #[allow(non_snake_case)]
+    #[derive(Clone, Copy)]
+    pub struct Palette {
+        pub BG_DEEP: Color32,   // darkest — inputs & code blocks
+        pub BG_MAIN: Color32,   // central panel
+        pub BG_PANEL: Color32,  // sidebar / topbar
+        pub BG_CARD: Color32,   // card fill
+        pub BG_ROW: Color32,    // subtle stripe
+        pub BG_WIDGET: Color32, // buttons / fields
+        pub WIDGET_HOVER: Color32,
+        pub STROKE: Color32,    // borders
+        // Accent — emerald + cyan
+        pub ACCENT: Color32,
+        pub ACCENT_DIM: Color32,
+        pub CYAN: Color32,
+        pub PURPLE: Color32,
+        // Text
+        pub TEXT: Color32,
+        pub TEXT_DIM: Color32,
+        pub TEXT_FAINT: Color32,
+        pub CODE_TEXT: Color32, // text on dark code blocks
+        // Semantic
+        pub OK: Color32,
+        pub WARN: Color32,
+        pub DANGER: Color32,
+        pub ORANGE: Color32,
+    }
+
+    /// Midnight navy + neon emerald (default)
+    pub const DARK: Palette = Palette {
+        BG_DEEP: Color32::from_rgb(5, 8, 17),
+        BG_MAIN: Color32::from_rgb(10, 14, 26),
+        BG_PANEL: Color32::from_rgb(8, 11, 21),
+        BG_CARD: Color32::from_rgb(17, 23, 41),
+        BG_ROW: Color32::from_rgb(23, 30, 52),
+        BG_WIDGET: Color32::from_rgb(26, 34, 58),
+        WIDGET_HOVER: Color32::from_rgb(32, 43, 72),
+        STROKE: Color32::from_rgb(44, 56, 88),
+        ACCENT: Color32::from_rgb(0, 230, 158),
+        ACCENT_DIM: Color32::from_rgba_premultiplied(0, 230, 158, 34),
+        CYAN: Color32::from_rgb(56, 189, 248),
+        PURPLE: Color32::from_rgb(167, 139, 250),
+        TEXT: Color32::from_rgb(226, 232, 240),
+        TEXT_DIM: Color32::from_rgb(140, 152, 178),
+        TEXT_FAINT: Color32::from_rgb(96, 106, 130),
+        CODE_TEXT: Color32::from_rgb(140, 152, 178),
+        OK: Color32::from_rgb(52, 211, 153),
+        WARN: Color32::from_rgb(251, 191, 36),
+        DANGER: Color32::from_rgb(248, 113, 113),
+        ORANGE: Color32::from_rgb(251, 146, 60),
+    };
+
+    /// Clean daylight — white surfaces, dark code blocks kept for identity
+    pub const LIGHT: Palette = Palette {
+        BG_DEEP: Color32::from_rgb(13, 19, 34),
+        BG_MAIN: Color32::from_rgb(245, 247, 250),
+        BG_PANEL: Color32::from_rgb(255, 255, 255),
+        BG_CARD: Color32::from_rgb(255, 255, 255),
+        BG_ROW: Color32::from_rgb(238, 241, 247),
+        BG_WIDGET: Color32::from_rgb(233, 237, 245),
+        WIDGET_HOVER: Color32::from_rgb(216, 225, 240),
+        STROKE: Color32::from_rgb(216, 223, 236),
+        ACCENT: Color32::from_rgb(5, 150, 105),
+        ACCENT_DIM: Color32::from_rgba_premultiplied(5, 150, 105, 34),
+        CYAN: Color32::from_rgb(2, 132, 199),
+        PURPLE: Color32::from_rgb(109, 40, 217),
+        TEXT: Color32::from_rgb(23, 32, 58),
+        TEXT_DIM: Color32::from_rgb(78, 90, 117),
+        TEXT_FAINT: Color32::from_rgb(139, 149, 171),
+        CODE_TEXT: Color32::from_rgb(148, 163, 184),
+        OK: Color32::from_rgb(5, 150, 105),
+        WARN: Color32::from_rgb(180, 83, 9),
+        DANGER: Color32::from_rgb(220, 38, 38),
+        ORANGE: Color32::from_rgb(234, 88, 12),
+    };
+
+    static MODE: AtomicU8 = AtomicU8::new(0);
+    pub fn set_mode(dark: bool) { MODE.store(if dark { 0 } else { 1 }, Ordering::Relaxed); }
+    pub fn is_dark() -> bool { MODE.load(Ordering::Relaxed) == 0 }
+    /// Palette for the current theme mode (process-wide, set every frame)
+    pub fn cur() -> &'static Palette { if is_dark() { &DARK } else { &LIGHT } }
 }
 
-fn configure_theme(ctx: &egui::Context) {
+/// User-selectable UI theme
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum ThemeMode { Dark, Light }
+
+impl ThemeMode {
+    fn toggle(self) -> Self {
+        match self { ThemeMode::Dark => ThemeMode::Light, ThemeMode::Light => ThemeMode::Dark }
+    }
+    fn label(self) -> &'static str {
+        match self { ThemeMode::Dark => "Dark", ThemeMode::Light => "Light" }
+    }
+}
+
+fn persist_theme(mode: ThemeMode) {
+    let _ = std::fs::write(
+        htool_dir().join("ui.json"),
+        format!("{{\"theme\":\"{}\"}}", mode.label().to_lowercase()),
+    );
+}
+
+fn load_theme() -> ThemeMode {
+    std::fs::read_to_string(htool_dir().join("ui.json")).ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("theme").and_then(|t| t.as_str()).map(|s| s.to_owned()))
+        .map(|s| if s == "light" { ThemeMode::Light } else { ThemeMode::Dark })
+        .unwrap_or(ThemeMode::Dark)
+}
+
+fn configure_theme(ctx: &egui::Context, mode: ThemeMode) {
+    theme::set_mode(mode == ThemeMode::Dark);
+    let t = theme::cur();
     let mut style = (*ctx.style()).clone();
     let v = &mut style.visuals;
-    v.dark_mode = true;
-    v.panel_fill = theme::BG_PANEL;
-    v.window_fill = theme::BG_CARD;
-    v.extreme_bg_color = theme::BG_DEEP;
-    v.faint_bg_color = theme::BG_ROW;
-    v.override_text_color = Some(theme::TEXT);
+    v.dark_mode = mode == ThemeMode::Dark;
+    v.panel_fill = t.BG_PANEL;
+    v.window_fill = t.BG_CARD;
+    v.extreme_bg_color = t.BG_DEEP;
+    v.faint_bg_color = t.BG_ROW;
+    v.override_text_color = Some(t.TEXT);
     v.button_frame = true;
     v.widgets.noninteractive.rounding = Rounding::same(6.0);
-    v.widgets.inactive.bg_fill = theme::BG_WIDGET;
-    v.widgets.inactive.weak_bg_fill = theme::BG_WIDGET;
-    v.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, theme::TEXT_DIM);
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, theme::STROKE);
+    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, t.TEXT_DIM);
+    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, t.STROKE);
+    v.widgets.inactive.bg_fill = t.BG_WIDGET;
+    v.widgets.inactive.weak_bg_fill = t.BG_WIDGET;
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, t.TEXT_DIM);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, t.STROKE);
     v.widgets.inactive.rounding = Rounding::same(8.0);
-    v.widgets.hovered.bg_fill = Color32::from_rgb(32, 43, 72);
-    v.widgets.hovered.weak_bg_fill = Color32::from_rgb(32, 43, 72);
-    v.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, theme::ACCENT.gamma_multiply(0.6));
+    v.widgets.hovered.bg_fill = t.WIDGET_HOVER;
+    v.widgets.hovered.weak_bg_fill = t.WIDGET_HOVER;
+    v.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, t.ACCENT);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, t.ACCENT.gamma_multiply(0.6));
     v.widgets.hovered.rounding = Rounding::same(8.0);
-    v.widgets.active.bg_fill = theme::ACCENT_DIM;
-    v.widgets.active.weak_bg_fill = theme::ACCENT_DIM;
-    v.widgets.active.fg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
-    v.widgets.active.bg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
+    v.widgets.active.bg_fill = t.ACCENT_DIM;
+    v.widgets.active.weak_bg_fill = t.ACCENT_DIM;
+    v.widgets.active.fg_stroke = Stroke::new(1.0_f32, t.ACCENT);
+    v.widgets.active.bg_stroke = Stroke::new(1.0_f32, t.ACCENT);
     v.widgets.active.rounding = Rounding::same(8.0);
-    v.selection.bg_fill = theme::ACCENT_DIM;
-    v.selection.stroke = Stroke::new(1.0_f32, theme::ACCENT);
+    v.selection.bg_fill = t.ACCENT_DIM;
+    v.selection.stroke = Stroke::new(1.0_f32, t.ACCENT);
     ctx.set_style(style);
 
     let mut fonts = egui::FontDefinitions::default();
@@ -78,9 +172,9 @@ fn configure_theme(ctx: &egui::Context) {
 /// A rounded card container with an optional accent title row
 fn card(ui: &mut egui::Ui, title: &str, accent: Color32, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::default()
-        .fill(theme::BG_CARD)
+        .fill(theme::cur().BG_CARD)
         .rounding(Rounding::same(12.0))
-        .stroke(Stroke::new(1.0_f32, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
         .inner_margin(Margin::same(16.0))
         .outer_margin(egui::Margin { bottom: 12.0, ..Default::default() })
         .show(ui, |ui| {
@@ -92,7 +186,7 @@ fn card(ui: &mut egui::Ui, title: &str, accent: Color32, add: impl FnOnce(&mut e
                         accent,
                     );
                     ui.add_space(4.0);
-                    ui.label(RichText::new(title).size(15.0).strong().color(theme::TEXT));
+                    ui.label(RichText::new(title).size(15.0).strong().color(theme::cur().TEXT));
                 });
                 ui.add_space(8.0);
             }
@@ -114,14 +208,14 @@ fn chip(ui: &mut egui::Ui, text: &str, fg: Color32, bg: Color32) {
 /// A big-number stat card used in the scan summary grid
 fn stat_card(ui: &mut egui::Ui, count: usize, label: &str, color: Color32) {
     egui::Frame::default()
-        .fill(theme::BG_ROW)
+        .fill(theme::cur().BG_ROW)
         .rounding(Rounding::same(10.0))
-        .stroke(Stroke::new(1.0_f32, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
         .inner_margin(Margin::same(10.0))
         .show(ui, |ui| {
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
                 ui.label(RichText::new(count.to_string()).size(24.0).strong().color(color));
-                ui.label(RichText::new(label).size(10.5).color(theme::TEXT_DIM));
+                ui.label(RichText::new(label).size(10.5).color(theme::cur().TEXT_DIM));
             });
         });
 }
@@ -129,34 +223,34 @@ fn stat_card(ui: &mut egui::Ui, count: usize, label: &str, color: Color32) {
 /// Severity banner color for a given severity string
 fn severity_color(sev: &str) -> Color32 {
     match sev {
-        "CRITICAL" => theme::DANGER,
-        "HIGH" => theme::ORANGE,
-        "MEDIUM" => theme::WARN,
-        "LOW" => theme::CYAN,
-        _ => theme::OK,
+        "CRITICAL" => theme::cur().DANGER,
+        "HIGH" => theme::cur().ORANGE,
+        "MEDIUM" => theme::cur().WARN,
+        "LOW" => theme::cur().CYAN,
+        _ => theme::cur().OK,
     }
 }
 
 fn tech_color(t: &str) -> Color32 {
-    if t.starts_with("[WAF]") { theme::ORANGE } else { theme::CYAN }
+    if t.starts_with("[WAF]") { theme::cur().ORANGE } else { theme::cur().CYAN }
 }
 
 fn field_label(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new(text).size(12.5).color(theme::TEXT_DIM));
+    ui.label(RichText::new(text).size(12.5).color(theme::cur().TEXT_DIM));
 }
 
 fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
     let resp = ui.add_sized([160.0, 34.0],
         egui::Button::new(RichText::new(text).size(14.5).strong().color(Color32::BLACK))
-            .fill(theme::ACCENT)
+            .fill(theme::cur().ACCENT)
             .rounding(Rounding::same(8.0)));
     resp.clicked()
 }
 
 fn ghost_button(ui: &mut egui::Ui, text: &str) -> bool {
-    ui.add(egui::Button::new(RichText::new(text).size(12.5).color(theme::CYAN))
+    ui.add(egui::Button::new(RichText::new(text).size(12.5).color(theme::cur().CYAN))
         .fill(Color32::TRANSPARENT)
-        .stroke(Stroke::new(1.0_f32, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
         .rounding(Rounding::same(8.0))).clicked()
 }
 
@@ -164,12 +258,12 @@ fn ghost_button(ui: &mut egui::Ui, text: &str) -> bool {
 fn code_block(ui: &mut egui::Ui, id: &str, content: &str, max_h: f32) {
     ScrollArea::vertical().max_height(max_h).id_source(("codeblk_", id)).show(ui, |ui| {
         egui::Frame::default()
-            .fill(theme::BG_DEEP)
+            .fill(theme::cur().BG_DEEP)
             .rounding(Rounding::same(8.0))
             .inner_margin(Margin::same(10.0))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.label(RichText::new(content).size(11.5).color(theme::TEXT_DIM).monospace());
+                ui.label(RichText::new(content).size(11.5).color(theme::cur().CODE_TEXT).monospace());
             });
     });
 }
@@ -178,7 +272,7 @@ fn code_block(ui: &mut egui::Ui, id: &str, content: &str, max_h: f32) {
 fn json_viewer(ui: &mut egui::Ui, json: &str, max_h: f32) {
     ScrollArea::vertical().max_height(max_h).id_source("json_viewer").show(ui, |ui| {
         egui::Frame::default()
-            .fill(theme::BG_DEEP)
+            .fill(theme::cur().BG_DEEP)
             .rounding(Rounding::same(8.0))
             .inner_margin(Margin::same(10.0))
             .show(ui, |ui| {
@@ -191,12 +285,12 @@ fn json_viewer(ui: &mut egui::Ui, json: &str, max_h: f32) {
                         None => (String::new(), trimmed),
                     };
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(indent_ws.to_string() + &key_part).size(11.5).color(theme::CYAN).monospace());
+                        ui.label(RichText::new(indent_ws.to_string() + &key_part).size(11.5).color(theme::cur().CYAN).monospace());
                         if !rest.is_empty() && !key_part.is_empty() {
-                            let color = if rest.starts_with('"') { theme::OK } else if rest.chars().next().is_some_and(|c| c.is_ascii_digit()) { theme::ORANGE } else { theme::TEXT_DIM };
+                            let color = if rest.starts_with('"') { theme::cur().OK } else if rest.chars().next().is_some_and(|c| c.is_ascii_digit()) { theme::cur().ORANGE } else { theme::cur().TEXT_DIM };
                             ui.label(RichText::new(rest).size(11.5).color(color).monospace());
                         } else if !rest.is_empty() {
-                            ui.label(RichText::new(rest).size(11.5).color(theme::TEXT_DIM).monospace());
+                            ui.label(RichText::new(rest).size(11.5).color(theme::cur().CODE_TEXT).monospace());
                         }
                     });
                 }
@@ -207,12 +301,12 @@ fn json_viewer(ui: &mut egui::Ui, json: &str, max_h: f32) {
 /// List of vulnerable URLs with warning bullets
 fn vuln_list(ui: &mut egui::Ui, items: &[String], color: Color32) {
     if items.is_empty() {
-        chip(ui, "✓ none found", theme::OK, theme::OK.gamma_multiply(0.13));
+        chip(ui, "✓ none found", theme::cur().OK, theme::cur().OK.gamma_multiply(0.13));
         return;
     }
     for item in items {
         egui::Frame::default()
-            .fill(theme::BG_DEEP)
+            .fill(theme::cur().BG_DEEP)
             .rounding(Rounding::same(6.0))
             .inner_margin(Margin::symmetric(10.0, 6.0))
             .outer_margin(egui::Margin { bottom: 4.0, ..Default::default() })
@@ -226,7 +320,7 @@ fn vuln_list(ui: &mut egui::Ui, items: &[String], color: Color32) {
 /// Grid of chips
 fn chip_grid(ui: &mut egui::Ui, items: &[String], default_fg: Color32) {
     if items.is_empty() {
-        ui.label(RichText::new("— nothing detected —").size(12.0).color(theme::TEXT_FAINT));
+        ui.label(RichText::new("— nothing detected —").size(12.0).color(theme::cur().TEXT_FAINT));
         return;
     }
     ui.horizontal_wrapped(|ui| {
@@ -248,12 +342,14 @@ enum AppMessage {
     StressFinished(Result<u64, String>),
     CredStuffFinished(Vec<LoginResult>),
     SpamFinished(usize),
+    ScheduleRan { id: String, name: String, status: String },
 }
 
 #[derive(PartialEq, Clone, Copy)]
 enum ActiveTab {
     Dashboard,
     Scanner,
+    Scheduler,
     Stress,
     CredStuff,
     Spam,
@@ -263,10 +359,11 @@ enum ActiveTab {
 }
 
 impl ActiveTab {
-    fn all() -> [(ActiveTab, &'static str, &'static str); 8] {
+    fn all() -> [(ActiveTab, &'static str, &'static str); 9] {
         [
             (ActiveTab::Dashboard,    "◈", "Dashboard"),
             (ActiveTab::Scanner,      "◉", "Scanner"),
+            (ActiveTab::Scheduler,    "⏱", "Scheduler"),
             (ActiveTab::Stress,       "⚡", "Stress Test"),
             (ActiveTab::CredStuff,    "@", "Cred Stuffing"),
             (ActiveTab::Spam,         "✉", "Spam & Flood"),
@@ -282,6 +379,7 @@ impl ActiveTab {
 
 struct UltimateApp {
     active_tab: ActiveTab,
+    theme_mode: ThemeMode,
     // Scanner
     scan_target: String,
     scan_mode: String,
@@ -293,6 +391,21 @@ struct UltimateApp {
     scan_in_progress: bool,
     scan_progress: f32,
     scan_phase: String,
+    // Scheduler
+    sched_name: String,
+    sched_target: String,
+    sched_mode: String,
+    sched_rate: u32,
+    sched_timeout: u64,
+    sched_proxy: String,
+    sched_every: bool,
+    sched_every_n: u64,
+    sched_every_unit: String,
+    sched_daily_time: String,
+    sched_reports_dir: String,
+    sched_entries: Vec<ScheduleEntry>,
+    sched_error: Option<String>,
+    sched_last_check: Option<std::time::Instant>,
     // Stress
     stress_target: String,
     stress_attack: String,
@@ -350,6 +463,7 @@ impl Default for UltimateApp {
         let (tx_chan, rx_chan) = std::sync::mpsc::channel();
         Self {
             active_tab: ActiveTab::Dashboard,
+            theme_mode: load_theme(),
             scan_target: String::new(),
             scan_mode: "quick".to_string(),
             scan_rate: 10,
@@ -360,6 +474,20 @@ impl Default for UltimateApp {
             scan_in_progress: false,
             scan_progress: 0.0,
             scan_phase: String::new(),
+            sched_name: String::new(),
+            sched_target: String::new(),
+            sched_mode: "quick".to_string(),
+            sched_rate: 10,
+            sched_timeout: 8,
+            sched_proxy: String::new(),
+            sched_every: true,
+            sched_every_n: 30,
+            sched_every_unit: "minutes".to_string(),
+            sched_daily_time: "09:00".to_string(),
+            sched_reports_dir: default_reports_dir().to_string_lossy().to_string(),
+            sched_entries: load_entries(),
+            sched_error: None,
+            sched_last_check: None,
             stress_target: String::new(),
             stress_attack: "http".to_string(),
             stress_threads: 100,
@@ -496,6 +624,113 @@ impl UltimateApp {
         else if progress < 0.8 { "Subdomain enumeration…" }
         else { "Fingerprinting & analysis…" }
     }
+
+    // ── Scheduler engine ───────────────────────────────────────
+
+    /// Fire any scheduled scans that are due (called on a 10s heartbeat)
+    fn fire_due_scheduled(&mut self, ctx: &egui::Context) {
+        let now = chrono::Local::now().timestamp();
+        let due = due_entries(&self.sched_entries, now);
+        if due.is_empty() { return; }
+        for mut entry in due {
+            self.add_log(format!("Scheduler: firing '{}' → {}", entry.name, entry.target));
+            entry.last_run_ts = Some(now);
+            entry.reschedule(chrono::Local::now());
+            entry.runs += 1;
+            self.launch_scheduled_scan(ctx, &entry);
+            if let Some(slot) = self.sched_entries.iter_mut().find(|e| e.id == entry.id) {
+                *slot = entry;
+            }
+        }
+        let _ = save_entries(&self.sched_entries);
+    }
+
+    /// Run one scheduled scan in the background; writes HTML+JSON+PDF reports
+    fn launch_scheduled_scan(&mut self, ctx: &egui::Context, entry: &ScheduleEntry) {
+        let config = ScannerConfig {
+            scan_type: if entry.mode == "full" { ScanType::Full } else { ScanType::Quick },
+            rate_limit_rps: entry.rate,
+            proxy: if entry.proxy.is_empty() { None } else { Some(entry.proxy.clone()) },
+            wordlist: load_wordlist(None),
+            timeout_secs: entry.timeout,
+            user_agent: utils::random_user_agent(),
+        };
+        let tx = self.tx.clone();
+        let ctx_clone = ctx.clone();
+        let entry = entry.clone();
+        tokio::spawn(async move {
+            let result = run_full_scan(entry.target.clone(), config, None).await;
+            let stamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+            std::fs::create_dir_all(&entry.reports_dir).ok();
+            let base = format!(
+                "{}/{}_{}",
+                entry.reports_dir.trim_end_matches('/'),
+                entry.name.replace(['/', ' ', '\\'], "_"),
+                stamp
+            );
+            let mut errs = 0;
+            if save_html_report(&result, &format!("{}.html", base)).is_err() { errs += 1; }
+            if save_json_report(&result, &format!("{}.json", base)).is_err() { errs += 1; }
+            if export_pdf_report(&result, &format!("{}.pdf", base)).is_err() { errs += 1; }
+            let status = if errs == 0 {
+                format!("OK — {} findings · severity {} · report {}.html / .json / .pdf",
+                    result.total_findings(), result.severity(), base)
+            } else {
+                format!("ERROR — {} report file(s) failed to write", errs)
+            };
+            let _ = tx.send(AppMessage::ScheduleRan { id: entry.id.clone(), name: entry.name.clone(), status });
+            ctx_clone.request_repaint();
+        });
+    }
+
+    /// Validate the "new schedule" form and add an entry
+    fn add_schedule_from_form(&mut self) {
+        self.sched_error = None;
+        if self.sched_target.trim().is_empty() {
+            self.sched_error = Some("Target is required.".into());
+            return;
+        }
+        let kind = if self.sched_every {
+            let secs = match self.sched_every_unit.as_str() {
+                "seconds" => self.sched_every_n,
+                "hours" => self.sched_every_n * 3600,
+                _ => self.sched_every_n * 60,
+            };
+            if secs < 60 {
+                self.sched_error = Some("Interval must be at least 60 seconds.".into());
+                return;
+            }
+            ScheduleKind::Interval { every_secs: secs }
+        } else {
+            match parse_daily_time(&self.sched_daily_time) {
+                Ok((h, m)) => ScheduleKind::Daily { hour: h, minute: m },
+                Err(e) => {
+                    self.sched_error = Some(e);
+                    return;
+                }
+            }
+        };
+        let name = if self.sched_name.trim().is_empty() {
+            format!("scan-{}", self.sched_target.trim().replace("://", "_").replace('/', "_"))
+        } else {
+            self.sched_name.trim().to_string()
+        };
+        let mut entry = ScheduleEntry::new(name, self.sched_target.trim().to_string(), kind);
+        entry.mode = self.sched_mode.clone();
+        entry.rate = self.sched_rate;
+        entry.timeout = self.sched_timeout;
+        entry.proxy = self.sched_proxy.trim().to_string();
+        entry.reports_dir = if self.sched_reports_dir.trim().is_empty() {
+            default_reports_dir().to_string_lossy().to_string()
+        } else {
+            self.sched_reports_dir.trim().to_string()
+        };
+        self.add_log(format!("Schedule added: {} ({}, {})", entry.name, entry.kind.describe(), entry.target));
+        self.sched_entries.push(entry);
+        let _ = save_entries(&self.sched_entries);
+        self.sched_name.clear();
+        self.sched_target.clear();
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -504,7 +739,7 @@ impl UltimateApp {
 
 impl eframe::App for UltimateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        configure_theme(ctx);
+        configure_theme(ctx, self.theme_mode);
 
         // Drain messages from background tasks
         while let Ok(msg) = self.rx.try_recv() {
@@ -547,18 +782,37 @@ impl eframe::App for UltimateApp {
                     self.spam_result = Some(sent);
                     self.add_log(format!("Spam module finished. Sent {} requests.", sent));
                 }
+                AppMessage::ScheduleRan { id, name, status } => {
+                    let ok = status.starts_with("OK");
+                    self.add_log(format!("Scheduled scan '{}' — {}", name,
+                        if ok { format!("✓ {}", status) } else { format!("✗ {}", status) }));
+                    if let Some(e) = self.sched_entries.iter_mut().find(|e| e.id == id) {
+                        e.last_status = Some(status);
+                    }
+                    let _ = save_entries(&self.sched_entries);
+                }
             }
+        }
+
+        // Scheduler heartbeat — fires due scans every 10s tick
+        let sched_tick = self.sched_last_check
+            .map(|t| t.elapsed() >= std::time::Duration::from_secs(10))
+            .unwrap_or(true);
+        if sched_tick {
+            self.sched_last_check = Some(std::time::Instant::now());
+            self.fire_due_scheduled(ctx);
         }
 
         self.draw_topbar(ctx);
         self.draw_sidebar(ctx);
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(theme::BG_MAIN).inner_margin(Margin::same(18.0)))
+            .frame(egui::Frame::default().fill(theme::cur().BG_MAIN).inner_margin(Margin::same(18.0)))
             .show(ctx, |ui| {
                 match self.active_tab {
                     ActiveTab::Dashboard    => self.tab_dashboard(ui),
                     ActiveTab::Scanner      => self.tab_scanner(ui, ctx),
+                    ActiveTab::Scheduler    => self.tab_scheduler(ui, ctx),
                     ActiveTab::Stress       => self.tab_stress(ui, ctx),
                     ActiveTab::CredStuff    => self.tab_credstuff(ui, ctx),
                     ActiveTab::Spam         => self.tab_spam(ui, ctx),
@@ -576,11 +830,11 @@ impl eframe::App for UltimateApp {
                 .collapsible(false).resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.label(RichText::new("htool").size(26.0).strong().color(theme::ACCENT));
-                    ui.label(RichText::new(format!("v{} — Ultimate Hacker Toolkit", env!("CARGO_PKG_VERSION"))).color(theme::TEXT_DIM));
+                    ui.label(RichText::new("htool").size(26.0).strong().color(theme::cur().ACCENT));
+                    ui.label(RichText::new(format!("v{} — Ultimate Hacker Toolkit", env!("CARGO_PKG_VERSION"))).color(theme::cur().TEXT_DIM));
                     ui.add_space(6.0);
                     ui.label("A multi-threaded networking utility and vulnerability scanner.");
-                    ui.label(RichText::new("Authorised security testing only.").color(theme::WARN).size(12.0));
+                    ui.label(RichText::new("Authorised security testing only.").color(theme::cur().WARN).size(12.0));
                     ui.add_space(8.0);
                     if ui.button("Close").clicked() { self.show_about = false; }
                 });
@@ -592,24 +846,41 @@ impl UltimateApp {
     // ── Top bar ────────────────────────────────────────────────
     fn draw_topbar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("topbar")
-            .frame(egui::Frame::default().fill(theme::BG_PANEL).inner_margin(Margin::symmetric(16.0, 10.0)))
+            .frame(egui::Frame::default().fill(theme::cur().BG_PANEL).inner_margin(Margin::symmetric(16.0, 10.0)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("htool").size(21.0).strong().color(theme::ACCENT).monospace());
-                    ui.label(RichText::new(format!("v{}", env!("CARGO_PKG_VERSION"))).size(10.5).color(theme::TEXT_FAINT).monospace());
+                    ui.label(RichText::new("htool").size(21.0).strong().color(theme::cur().ACCENT).monospace());
+                    ui.label(RichText::new(format!("v{}", env!("CARGO_PKG_VERSION"))).size(10.5).color(theme::cur().TEXT_FAINT).monospace());
                     ui.add_space(8.0);
-                    chip(ui, &format!("MODULE  ·  {}", self.active_tab.title()), theme::ACCENT, theme::ACCENT_DIM);
+                    chip(ui, &format!("MODULE  ·  {}", self.active_tab.title()), theme::cur().ACCENT, theme::cur().ACCENT_DIM);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let busy = self.scan_in_progress || self.stress_in_progress || self.cred_in_progress || self.spam_in_progress;
                         if busy {
                             ui.spinner();
-                            ui.label(RichText::new("running…").size(12.0).color(theme::WARN));
+                            ui.label(RichText::new("running…").size(12.0).color(theme::cur().WARN));
                         } else {
-                            ui.label(RichText::new("● idle").size(12.0).color(theme::OK));
+                            ui.label(RichText::new("● idle").size(12.0).color(theme::cur().OK));
                         }
-                        if ui.add(egui::Button::new(RichText::new("About").size(12.0).color(theme::TEXT_DIM)).fill(Color32::TRANSPARENT)).clicked() {
+                        if ui.add(egui::Button::new(RichText::new("About").size(12.0).color(theme::cur().TEXT_DIM)).fill(Color32::TRANSPARENT)).clicked() {
                             self.show_about = true;
                         }
+                        // Dark / Light mode toggle
+                        let (icon, tip) = if self.theme_mode == ThemeMode::Dark {
+                            ("☀", "Switch to light mode")
+                        } else {
+                            ("☾", "Switch to dark mode")
+                        };
+                        let theme_btn = ui.add(egui::Button::new(
+                                RichText::new(format!("{} {}", icon, if self.theme_mode == ThemeMode::Dark { "Light" } else { "Dark" })).size(12.0).color(theme::cur().ACCENT))
+                            .fill(theme::cur().ACCENT_DIM)
+                            .rounding(Rounding::same(100.0)));
+                        if theme_btn.clicked() {
+                            self.theme_mode = self.theme_mode.toggle();
+                            persist_theme(self.theme_mode);
+                            self.add_log(format!("Theme switched to {} mode.", self.theme_mode.label()));
+                        }
+                        if theme_btn.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                        let _ = tip;
                     });
                 });
             });
@@ -619,14 +890,14 @@ impl UltimateApp {
     fn draw_sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("sidebar")
             .exact_width(190.0)
-            .frame(egui::Frame::default().fill(theme::BG_PANEL).inner_margin(Margin { left: 10.0, right: 10.0, top: 14.0, bottom: 10.0 }))
+            .frame(egui::Frame::default().fill(theme::cur().BG_PANEL).inner_margin(Margin { left: 10.0, right: 10.0, top: 14.0, bottom: 10.0 }))
             .show(ctx, |ui| {
-                ui.label(RichText::new("MODULES").size(10.0).color(theme::TEXT_FAINT).monospace());
+                ui.label(RichText::new("MODULES").size(10.0).color(theme::cur().TEXT_FAINT).monospace());
                 ui.add_space(8.0);
                 for (tab, icon, name) in ActiveTab::all() {
                     let selected = self.active_tab == tab;
                     let resp = egui::Frame::default()
-                        .fill(if selected { theme::ACCENT_DIM } else { Color32::TRANSPARENT })
+                        .fill(if selected { theme::cur().ACCENT_DIM } else { Color32::TRANSPARENT })
                         .rounding(Rounding::same(8.0))
                         .inner_margin(Margin::symmetric(10.0, 7.0))
                         .show(ui, |ui| {
@@ -635,10 +906,10 @@ impl UltimateApp {
                                 if selected {
                                     ui.painter().rect_filled(
                                         egui::Rect::from_min_size(ui.cursor().min, egui::vec2(3.0, 16.0)),
-                                        Rounding::same(2.0), theme::ACCENT);
+                                        Rounding::same(2.0), theme::cur().ACCENT);
                                 }
-                                ui.label(RichText::new(icon).size(13.0).color(if selected { theme::ACCENT } else { theme::TEXT_DIM }));
-                                ui.label(RichText::new(name).size(13.0).color(if selected { theme::TEXT } else { theme::TEXT_DIM }).strong());
+                                ui.label(RichText::new(icon).size(13.0).color(if selected { theme::cur().ACCENT } else { theme::cur().TEXT_DIM }));
+                                ui.label(RichText::new(name).size(13.0).color(if selected { theme::cur().TEXT } else { theme::cur().TEXT_DIM }).strong());
                             });
                         })
                         .response
@@ -651,8 +922,8 @@ impl UltimateApp {
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(6.0);
-                    ui.label(RichText::new("by Resolute Femi").size(10.5).color(theme::TEXT_FAINT).monospace());
-                    ui.label(RichText::new("authorised use only").size(10.0).color(theme::WARN.gamma_multiply(0.8)));
+                    ui.label(RichText::new("by Resolute Femi").size(10.5).color(theme::cur().TEXT_FAINT).monospace());
+                    ui.label(RichText::new("authorised use only").size(10.0).color(theme::cur().WARN.gamma_multiply(0.8)));
                 });
             });
     }
@@ -661,17 +932,17 @@ impl UltimateApp {
     fn draw_logstrip(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new("ACTIVITY LOG").size(10.0).color(theme::TEXT_FAINT).monospace());
-            if ui.add(egui::Button::new(RichText::new("clear").size(10.5).color(theme::TEXT_FAINT)).fill(Color32::TRANSPARENT)).clicked() {
+            ui.label(RichText::new("ACTIVITY LOG").size(10.0).color(theme::cur().TEXT_FAINT).monospace());
+            if ui.add(egui::Button::new(RichText::new("clear").size(10.5).color(theme::cur().TEXT_FAINT)).fill(Color32::TRANSPARENT)).clicked() {
                 self.logs.clear();
             }
         });
         ScrollArea::vertical().max_height(90.0).stick_to_bottom(true).id_source("logstrip").show(ui, |ui| {
-            egui::Frame::default().fill(theme::BG_DEEP).rounding(Rounding::same(8.0))
+            egui::Frame::default().fill(theme::cur().BG_DEEP).rounding(Rounding::same(8.0))
                 .inner_margin(Margin::same(8.0)).show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     for log in self.logs.iter().rev() {
-                        ui.label(RichText::new(log).size(11.0).color(theme::TEXT_FAINT).monospace());
+                        ui.label(RichText::new(log).size(11.0).color(theme::cur().TEXT_FAINT).monospace());
                     }
                 });
         });
@@ -679,8 +950,8 @@ impl UltimateApp {
 
     // ── Dashboard ──────────────────────────────────────────────
     fn tab_dashboard(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Command Center").size(24.0).strong().color(theme::TEXT));
-        ui.label(RichText::new("Select a module below to begin your authorised assessment.").size(13.0).color(theme::TEXT_DIM));
+        ui.label(RichText::new("Command Center").size(24.0).strong().color(theme::cur().TEXT));
+        ui.label(RichText::new("Select a module below to begin your authorised assessment.").size(13.0).color(theme::cur().TEXT_DIM));
         ui.add_space(12.0);
 
         // Severity overview of the latest scan
@@ -697,32 +968,33 @@ impl UltimateApp {
                         ui.label(RichText::new(format!("LAST SCAN — {}", res.target)).size(13.0).strong().color(severity_color(sev)));
                         chip(ui, sev, severity_color(sev), severity_color(sev).gamma_multiply(0.15));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.add(egui::Button::new(RichText::new("View full report ▸").size(12.0).color(theme::CYAN)).fill(Color32::TRANSPARENT)).clicked() {
+                            if ui.add(egui::Button::new(RichText::new("View full report ▸").size(12.0).color(theme::cur().CYAN)).fill(Color32::TRANSPARENT)).clicked() {
                                 self.view_result_in_report(&res);
                             }
                         });
                     });
-                    ui.label(RichText::new(format!("{} security findings · {} open ports · {} technologies", res.total_findings(), res.open_ports.len(), res.technologies.len())).size(12.0).color(theme::TEXT_DIM));
+                    ui.label(RichText::new(format!("{} security findings · {} open ports · {} technologies", res.total_findings(), res.open_ports.len(), res.technologies.len())).size(12.0).color(theme::cur().TEXT_DIM));
                 });
         }
 
         // Module launcher grid
         let modules: Vec<(&str, &str, &str, ActiveTab, Color32)> = vec![
-            ("◉", "Vulnerability Scanner", "Ports · SQLi · XSS · dirs · subdomains · SSL · headers · CVEs", ActiveTab::Scanner, theme::ACCENT),
-            ("⚡", "Stress Testing", "HTTP / Slowloris / UDP / SYN load simulation (authorised only)", ActiveTab::Stress, theme::ORANGE),
-            ("@", "Credential Stuffing", "Mass login tests with wordlists, proxies & rate limiting", ActiveTab::CredStuff, theme::CYAN),
-            ("✉", "Spam & Flood", "DB flood · comment spam · registration spam rate-limit tests", ActiveTab::Spam, theme::WARN),
-            (">_", "Payload Generator", "Reverse & bind shells · web shells · download & exec", ActiveTab::Payload, theme::PURPLE),
-            ("▤", "Report Viewer", "Open scan JSON — view the rendered report & JSON in-app", ActiveTab::ReportViewer, theme::OK),
-            ("☰", "CVE Database", "Offline CVE lookup by product, keyword or year", ActiveTab::CveSearch, theme::DANGER),
+            ("◉", "Vulnerability Scanner", "Ports · SQLi · XSS · dirs · subdomains · SSL · headers · CVEs", ActiveTab::Scanner, theme::cur().ACCENT),
+            ("⏱", "Scan Scheduler", "Run scans on a schedule — every N min or daily · HTML+JSON+PDF reports", ActiveTab::Scheduler, theme::cur().CYAN),
+            ("⚡", "Stress Testing", "HTTP / Slowloris / UDP / SYN load simulation (authorised only)", ActiveTab::Stress, theme::cur().ORANGE),
+            ("@", "Credential Stuffing", "Mass login tests with wordlists, proxies & rate limiting", ActiveTab::CredStuff, theme::cur().CYAN),
+            ("✉", "Spam & Flood", "DB flood · comment spam · registration spam rate-limit tests", ActiveTab::Spam, theme::cur().WARN),
+            (">_", "Payload Generator", "Reverse & bind shells · web shells · download & exec", ActiveTab::Payload, theme::cur().PURPLE),
+            ("▤", "Report Viewer", "Open scan JSON — view the rendered report & JSON in-app", ActiveTab::ReportViewer, theme::cur().OK),
+            ("☰", "CVE Database", "Offline CVE lookup by product, keyword or year", ActiveTab::CveSearch, theme::cur().DANGER),
         ];
         let cells = modules.len();
         let cols = 3usize;
         egui::Grid::new("module_grid").min_col_width(210.0).spacing([10.0, 10.0]).show(ui, |ui| {
             for (i, (icon, name, desc, tab, color)) in modules.iter().enumerate() {
                 egui::Frame::default()
-                    .fill(theme::BG_CARD).rounding(Rounding::same(12.0))
-                    .stroke(Stroke::new(1.0_f32, theme::STROKE))
+                    .fill(theme::cur().BG_CARD).rounding(Rounding::same(12.0))
+                    .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
                     .inner_margin(Margin::same(14.0))
                     .show(ui, |ui| {
                         ui.set_min_width(190.0);
@@ -730,12 +1002,12 @@ impl UltimateApp {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new(*icon).size(17.0).color(*color));
-                                ui.label(RichText::new(*name).size(14.0).strong().color(theme::TEXT));
+                                ui.label(RichText::new(*name).size(14.0).strong().color(theme::cur().TEXT));
                             });
                             ui.add_space(4.0);
-                            ui.label(RichText::new(*desc).size(11.0).color(theme::TEXT_DIM));
+                            ui.label(RichText::new(*desc).size(11.0).color(theme::cur().TEXT_DIM));
                             ui.add_space(6.0);
-                            let btn = ui.add(egui::Button::new(RichText::new(format!("Open {}", *icon)).size(11.5).color(*color)).fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0_f32, theme::STROKE)));
+                            let btn = ui.add(egui::Button::new(RichText::new(format!("Open {}", *icon)).size(11.5).color(*color)).fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0_f32, theme::cur().STROKE)));
                             if btn.clicked() { self.active_tab = *tab; }
                         });
                     });
@@ -744,15 +1016,15 @@ impl UltimateApp {
             }
         });
         ui.add_space(4.0);
-        ui.label(RichText::new(format!("⚠ For authorised security testing and educational purposes only. v{}", env!("CARGO_PKG_VERSION"))).size(11.0).color(theme::TEXT_FAINT));
+        ui.label(RichText::new(format!("⚠ For authorised security testing and educational purposes only. v{}", env!("CARGO_PKG_VERSION"))).size(11.0).color(theme::cur().TEXT_FAINT));
     }
 
     // ── Scanner ────────────────────────────────────────────────
     fn tab_scanner(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.label(RichText::new("Vulnerability Scanner").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Vulnerability Scanner").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
 
-        card(ui, "Scan Configuration", theme::ACCENT, |ui| {
+        card(ui, "Scan Configuration", theme::cur().ACCENT, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "TARGET");
                 ui.add(egui::TextEdit::singleline(&mut self.scan_target).hint_text("https://example.com or 10.0.0.1").desired_width(380.0));
@@ -760,7 +1032,7 @@ impl UltimateApp {
                 field_label(ui, "MODE");
                 let mk = |ui: &mut egui::Ui, label: &str, val: &str| {
                     let sel = self.scan_mode == val;
-                    let _ = ui.selectable_label(sel, RichText::new(label).color(if sel { theme::ACCENT } else { theme::TEXT_DIM }).strong());
+                    let _ = ui.selectable_label(sel, RichText::new(label).color(if sel { theme::cur().ACCENT } else { theme::cur().TEXT_DIM }).strong());
                 };
                 mk(ui, "⚡ Quick", "quick");
                 mk(ui, "🐢 Full (1–1024)", "full");
@@ -792,7 +1064,7 @@ impl UltimateApp {
                     self.run_scan(ctx);
                 }
             } else {
-                ui.add(egui::Button::new(RichText::new("● Scanning…").size(14.5).strong().color(theme::TEXT_DIM)).fill(theme::BG_WIDGET).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0)));
+                ui.add(egui::Button::new(RichText::new("● Scanning…").size(14.5).strong().color(theme::cur().TEXT_DIM)).fill(theme::cur().BG_WIDGET).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0)));
             }
             ui.add_space(10.0);
             if ghost_button(ui, "Copy JSON to clipboard") {
@@ -804,15 +1076,15 @@ impl UltimateApp {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                chip(ui, "authorised targets only", theme::WARN, theme::WARN.gamma_multiply(0.10));
+                chip(ui, "authorised targets only", theme::cur().WARN, theme::cur().WARN.gamma_multiply(0.10));
             });
         });
         ui.add_space(10.0);
         if self.scan_in_progress {
-            card(ui, "Progress", theme::CYAN, |ui| {
-                ui.add(ProgressBar::new(self.scan_progress).text(format!("{}  ·  {:.0}%", self.scan_phase, self.scan_progress * 100.0)).fill(theme::ACCENT));
+            card(ui, "Progress", theme::cur().CYAN, |ui| {
+                ui.add(ProgressBar::new(self.scan_progress).text(format!("{}  ·  {:.0}%", self.scan_phase, self.scan_progress * 100.0)).fill(theme::cur().ACCENT));
                 ui.add_space(4.0);
-                ui.label(RichText::new("Multi-threaded async scan in progress — you can browse other modules.").size(11.5).color(theme::TEXT_FAINT));
+                ui.label(RichText::new("Multi-threaded async scan in progress — you can browse other modules.").size(11.5).color(theme::cur().TEXT_FAINT));
             });
         }
 
@@ -828,6 +1100,15 @@ impl UltimateApp {
                         let p = path.display().to_string();
                         match save_html_report(&result, &p) {
                             Ok(_) => self.add_log(format!("HTML report exported to {}", p)),
+                            Err(e) => self.add_log(format!("Export failed: {}", e)),
+                        }
+                    }
+                }
+                if ui.button("📕 Export PDF").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().add_filter("PDF Report", &["pdf"]).set_file_name("htool_report.pdf").save_file() {
+                        let p = path.display().to_string();
+                        match export_pdf_report(&result, &p) {
+                            Ok(_) => self.add_log(format!("PDF report exported to {}", p)),
                             Err(e) => self.add_log(format!("Export failed: {}", e)),
                         }
                     }
@@ -850,11 +1131,164 @@ impl UltimateApp {
         }
     }
 
+    // ── Scheduler ──────────────────────────────────────────────
+    fn tab_scheduler(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.label(RichText::new("Scan Scheduler").size(22.0).strong().color(theme::cur().TEXT));
+        ui.label(RichText::new("Run scans automatically — every N minutes or daily at a fixed time. Reports (HTML + JSON + PDF) are saved to the reports folder.").size(12.5).color(theme::cur().TEXT_DIM));
+        ui.add_space(8.0);
+
+        card(ui, "New Scheduled Scan", theme::cur().CYAN, |ui| {
+            ui.horizontal(|ui| {
+                field_label(ui, "NAME");
+                ui.add(egui::TextEdit::singleline(&mut self.sched_name).hint_text("nightly perimeter scan").desired_width(190.0));
+                ui.add_space(10.0);
+                field_label(ui, "TARGET");
+                ui.add(egui::TextEdit::singleline(&mut self.sched_target).hint_text("https://example.com").desired_width(280.0));
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                field_label(ui, "MODE");
+                let mk = |ui: &mut egui::Ui, label: &str, val: &str| {
+                    let sel = self.sched_mode == val;
+                    let _ = ui.selectable_label(sel, RichText::new(label).color(if sel { theme::cur().ACCENT } else { theme::cur().TEXT_DIM }).strong());
+                };
+                mk(ui, "⚡ Quick", "quick");
+                mk(ui, "🐢 Full", "full");
+                ui.add_space(12.0);
+                field_label(ui, "RATE (RPS)");
+                ui.add(egui::DragValue::new(&mut self.sched_rate).clamp_range(1..=200));
+                ui.add_space(12.0);
+                field_label(ui, "TIMEOUT (s)");
+                ui.add(egui::DragValue::new(&mut self.sched_timeout).clamp_range(1..=30));
+                ui.add_space(12.0);
+                field_label(ui, "PROXY");
+                ui.add(egui::TextEdit::singleline(&mut self.sched_proxy).hint_text("optional").desired_width(140.0));
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                field_label(ui, "FREQUENCY");
+                if ui.selectable_label(self.sched_every, RichText::new("⏱  Every").color(if self.sched_every { theme::cur().ACCENT } else { theme::cur().TEXT_DIM }).strong()).clicked() {
+                    self.sched_every = true;
+                }
+                if ui.selectable_label(!self.sched_every, RichText::new("☉  Daily at").color(if !self.sched_every { theme::cur().ACCENT } else { theme::cur().TEXT_DIM }).strong()).clicked() {
+                    self.sched_every = false;
+                }
+                if self.sched_every {
+                    ui.add(egui::DragValue::new(&mut self.sched_every_n).clamp_range(1..=9999));
+                    egui::ComboBox::from_id_source("sched_unit").selected_text(&self.sched_every_unit).width(90.0).show_ui(ui, |ui| {
+                        for u in &["seconds", "minutes", "hours"] {
+                            ui.selectable_value(&mut self.sched_every_unit, u.to_string(), *u);
+                        }
+                    });
+                } else {
+                    ui.add(egui::TextEdit::singleline(&mut self.sched_daily_time).hint_text("HH:MM").desired_width(60.0));
+                    ui.label(RichText::new("(local time)").size(11.0).color(theme::cur().TEXT_FAINT));
+                }
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                field_label(ui, "REPORTS DIR");
+                ui.add(egui::TextEdit::singleline(&mut self.sched_reports_dir).desired_width(330.0));
+                if ui.button("📂").clicked() {
+                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                        self.sched_reports_dir = dir.display().to_string();
+                    }
+                }
+                ui.add_space(10.0);
+                if ui.add(egui::Button::new(RichText::new("＋  ADD SCHEDULE").strong().color(Color32::BLACK)).fill(theme::cur().CYAN).rounding(Rounding::same(8.0)).min_size(egui::vec2(150.0, 30.0))).clicked() {
+                    self.add_schedule_from_form();
+                }
+            });
+            if let Some(err) = &self.sched_error {
+                ui.add_space(6.0);
+                ui.label(RichText::new(format!("✗ {}", err)).color(theme::cur().DANGER).size(12.0));
+            }
+        });
+
+        ui.add_space(2.0);
+        let total = self.sched_entries.len();
+        let enabled_n = self.sched_entries.iter().filter(|e| e.enabled).count();
+        card(ui, &format!("Scheduled Scans — {} total, {} enabled", total, enabled_n), theme::cur().ACCENT, |ui| {
+            if self.sched_entries.is_empty() {
+                ui.label(RichText::new("No scheduled scans yet. Add one above — try “every 30 minutes” for continuous monitoring.").size(12.5).color(theme::cur().TEXT_FAINT));
+                return;
+            }
+            let entries = self.sched_entries.clone();
+            ScrollArea::vertical().max_height(ui.available_height() - 30.0).id_source("sched_list").show(ui, |ui| {
+                for entry in &entries {
+                    egui::Frame::default()
+                        .fill(theme::cur().BG_ROW)
+                        .rounding(Rounding::same(10.0))
+                        .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
+                        .inner_margin(Margin::same(10.0))
+                        .outer_margin(egui::Margin { bottom: 8.0, ..Default::default() })
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(&entry.name).size(14.0).strong().color(theme::cur().TEXT));
+                                chip(ui, &entry.kind.describe(), theme::cur().CYAN, theme::cur().CYAN.gamma_multiply(0.12));
+                                if entry.enabled {
+                                    let next = entry.next_run_ts.map(countdown).unwrap_or_else(|| "—".into());
+                                    chip(ui, &format!("next {}", next), theme::cur().ACCENT, theme::cur().ACCENT_DIM);
+                                } else {
+                                    chip(ui, "paused", theme::cur().TEXT_FAINT, theme::cur().BG_WIDGET);
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(format!("⌖ {}", entry.target)).size(12.0).color(theme::cur().TEXT_DIM).monospace());
+                                ui.label(RichText::new(format!("· {} mode · {} rps", entry.mode, entry.rate)).size(11.0).color(theme::cur().TEXT_FAINT));
+                            });
+                            ui.horizontal(|ui| {
+                                if let Some(status) = &entry.last_status {
+                                    let ok = status.starts_with("OK");
+                                    chip(ui, &format!("last run: {}", status),
+                                        if ok { theme::cur().OK } else { theme::cur().DANGER },
+                                        (if ok { theme::cur().OK } else { theme::cur().DANGER }).gamma_multiply(0.10));
+                                } else {
+                                    ui.label(RichText::new("never executed yet").size(11.0).color(theme::cur().TEXT_FAINT));
+                                }
+                            });
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                let enable_label = if entry.enabled { "⏸ Pause" } else { "▶ Enable" };
+                                let id = entry.id.clone();
+                                if ui.small_button(enable_label).clicked() {
+                                    if let Some(e) = self.sched_entries.iter_mut().find(|e| e.id == id) {
+                                        e.enabled = !e.enabled;
+                                        if e.enabled && e.next_run_ts.is_none() { e.reschedule(chrono::Local::now()); }
+                                    }
+                                    let _ = save_entries(&self.sched_entries);
+                                }
+                                if ui.small_button("⚡ Run now").clicked() {
+                                    let mut e = entry.clone();
+                                    e.last_run_ts = Some(chrono::Local::now().timestamp());
+                                    e.reschedule(chrono::Local::now());
+                                    e.runs += 1;
+                                    self.add_log(format!("Scheduler: manual run of '{}' → {}", e.name, e.target));
+                                    self.launch_scheduled_scan(ctx, &e);
+                                    if let Some(slot) = self.sched_entries.iter_mut().find(|s| s.id == id) { *slot = e; }
+                                    let _ = save_entries(&self.sched_entries);
+                                }
+                                if ui.small_button("🗑 Remove").clicked() {
+                                    self.sched_entries.retain(|e| e.id != id);
+                                    let _ = save_entries(&self.sched_entries);
+                                    self.add_log(format!("Schedule {} removed.", id));
+                                }
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(RichText::new(format!("{} runs · dir: {}", entry.runs, entry.reports_dir)).size(10.5).color(theme::cur().TEXT_FAINT).monospace());
+                                });
+                            });
+                        });
+                }
+            });
+        });
+    }
+
     // ── Stress ─────────────────────────────────────────────────
     fn tab_stress(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.label(RichText::new("Stress Testing").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Stress Testing").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
-        card(ui, "Attack Simulation (authorised targets only)", theme::ORANGE, |ui| {
+        card(ui, "Attack Simulation (authorised targets only)", theme::cur().ORANGE, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "TARGET");
                 ui.add(egui::TextEdit::singleline(&mut self.stress_target).hint_text("http://192.168.1.1:80").desired_width(330.0));
@@ -880,7 +1314,7 @@ impl UltimateApp {
         });
         ui.horizontal(|ui| {
             if !self.stress_in_progress {
-                if ui.add(egui::Button::new(RichText::new("⚡  LAUNCH TEST").strong().color(Color32::BLACK)).fill(theme::ORANGE).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked() && !self.stress_target.is_empty() {
+                if ui.add(egui::Button::new(RichText::new("⚡  LAUNCH TEST").strong().color(Color32::BLACK)).fill(theme::cur().ORANGE).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked() && !self.stress_target.is_empty() {
                     self.stress_in_progress = true;
                     self.stress_result = None;
                     let target = self.stress_target.clone();
@@ -899,25 +1333,25 @@ impl UltimateApp {
                 }
             } else {
                 ui.spinner();
-                ui.label(RichText::new("Test running…").color(theme::WARN));
+                ui.label(RichText::new("Test running…").color(theme::cur().WARN));
             }
             if ui.button("Stop waiting & reset").clicked() && !self.stress_in_progress { self.stress_result = None; }
         });
         if let Some(res_str) = &self.stress_result {
             ui.add_space(8.0);
             let ok = res_str.starts_with('✓');
-            egui::Frame::default().fill(if ok { theme::OK.gamma_multiply(0.1) } else { theme::DANGER.gamma_multiply(0.1) })
+            egui::Frame::default().fill(if ok { theme::cur().OK.gamma_multiply(0.1) } else { theme::cur().DANGER.gamma_multiply(0.1) })
                 .rounding(Rounding::same(8.0)).inner_margin(Margin::same(10.0)).show(ui, |ui| {
-                    ui.label(RichText::new(res_str).color(if ok { theme::OK } else { theme::DANGER }).size(13.0));
+                    ui.label(RichText::new(res_str).color(if ok { theme::cur().OK } else { theme::cur().DANGER }).size(13.0));
                 });
         }
     }
 
     // ── Credential Stuffing ────────────────────────────────────
     fn tab_credstuff(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.label(RichText::new("Credential Stuffing").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Credential Stuffing").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
-        card(ui, "Login Test Configuration", theme::CYAN, |ui| {
+        card(ui, "Login Test Configuration", theme::cur().CYAN, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "LOGIN URL");
                 ui.add(egui::TextEdit::singleline(&mut self.cred_login_url).hint_text("https://example.com/login").desired_width(300.0));
@@ -955,7 +1389,7 @@ impl UltimateApp {
             });
         });
         ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new("▶  START STUFFING").strong().color(Color32::BLACK)).fill(theme::CYAN).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked()
+            if ui.add(egui::Button::new(RichText::new("▶  START STUFFING").strong().color(Color32::BLACK)).fill(theme::cur().CYAN).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked()
                 && !self.cred_in_progress && !self.cred_login_url.is_empty() {
                 self.cred_in_progress = true;
                 self.cred_results.clear();
@@ -983,23 +1417,23 @@ impl UltimateApp {
                     ctx_clone.request_repaint();
                 });
             }
-            if self.cred_in_progress { ui.spinner(); ui.label(RichText::new("Testing credentials…").color(theme::WARN)); }
+            if self.cred_in_progress { ui.spinner(); ui.label(RichText::new("Testing credentials…").color(theme::cur().WARN)); }
         });
 
         if !self.cred_results.is_empty() {
             ui.add_space(8.0);
             let successful: Vec<_> = self.cred_results.iter().filter(|r| r.success).collect();
-            card(ui, format!("Results — {} / {} successful", successful.len(), self.cred_results.len()).as_str(), theme::OK, |ui| {
+            card(ui, format!("Results — {} / {} successful", successful.len(), self.cred_results.len()).as_str(), theme::cur().OK, |ui| {
                 ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                     if successful.is_empty() {
-                        ui.label(RichText::new("No valid credentials found.").color(theme::TEXT_DIM));
+                        ui.label(RichText::new("No valid credentials found.").color(theme::cur().TEXT_DIM));
                     }
                     for res in &successful {
-                        egui::Frame::default().fill(theme::BG_DEEP).rounding(Rounding::same(6.0))
+                        egui::Frame::default().fill(theme::cur().BG_DEEP).rounding(Rounding::same(6.0))
                             .inner_margin(Margin::symmetric(10.0, 6.0)).outer_margin(egui::Margin { bottom: 4.0, ..Default::default() })
                             .show(ui, |ui| {
                                 ui.set_min_width(ui.available_width());
-                                ui.label(RichText::new(format!("🔑  {}:{}", res.username, res.password)).color(theme::OK).monospace().size(12.5));
+                                ui.label(RichText::new(format!("🔑  {}:{}", res.username, res.password)).color(theme::cur().OK).monospace().size(12.5));
                             });
                     }
                 });
@@ -1009,9 +1443,9 @@ impl UltimateApp {
 
     // ── Spam & Flood ───────────────────────────────────────────
     fn tab_spam(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.label(RichText::new("Spam & Flood Testing").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Spam & Flood Testing").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
-        card(ui, "Rate-limit Tester", theme::WARN, |ui| {
+        card(ui, "Rate-limit Tester", theme::cur().WARN, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "MODULE");
                 egui::ComboBox::from_id_source("spam_kind_combo").selected_text(&self.spam_kind).width(160.0).show_ui(ui, |ui| {
@@ -1039,7 +1473,7 @@ impl UltimateApp {
             });
         });
         ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new("✉  SEND FLOOD").strong().color(Color32::BLACK)).fill(theme::WARN).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked()
+            if ui.add(egui::Button::new(RichText::new("✉  SEND FLOOD").strong().color(Color32::BLACK)).fill(theme::cur().WARN).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked()
                 && !self.spam_in_progress && !self.spam_endpoint.is_empty() {
                 self.spam_in_progress = true;
                 self.spam_result = None;
@@ -1071,21 +1505,21 @@ impl UltimateApp {
                     ctx_clone.request_repaint();
                 });
             }
-            if self.spam_in_progress { ui.spinner(); ui.label(RichText::new("Sending…").color(theme::WARN)); }
+            if self.spam_in_progress { ui.spinner(); ui.label(RichText::new("Sending…").color(theme::cur().WARN)); }
         });
         if let Some(result) = self.spam_result {
             ui.add_space(8.0);
-            egui::Frame::default().fill(theme::OK.gamma_multiply(0.1)).rounding(Rounding::same(8.0)).inner_margin(Margin::same(10.0)).show(ui, |ui| {
-                ui.label(RichText::new(format!("✓ Completed — {} requests sent", result)).color(theme::OK).size(13.0));
+            egui::Frame::default().fill(theme::cur().OK.gamma_multiply(0.1)).rounding(Rounding::same(8.0)).inner_margin(Margin::same(10.0)).show(ui, |ui| {
+                ui.label(RichText::new(format!("✓ Completed — {} requests sent", result)).color(theme::cur().OK).size(13.0));
             });
         }
     }
 
     // ── Payload Generator ──────────────────────────────────────
     fn tab_payload(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Payload Generator").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Payload Generator").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
-        card(ui, "Generator Options", theme::PURPLE, |ui| {
+        card(ui, "Generator Options", theme::cur().PURPLE, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "TYPE");
                 egui::ComboBox::from_id_source("payload_type_combo").selected_text(&self.payload_type).width(130.0).show_ui(ui, |ui| {
@@ -1119,7 +1553,7 @@ impl UltimateApp {
             }
         });
         ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new("❯  GENERATE").strong().color(Color32::BLACK)).fill(theme::PURPLE).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked() {
+            if ui.add(egui::Button::new(RichText::new("❯  GENERATE").strong().color(Color32::BLACK)).fill(theme::cur().PURPLE).rounding(Rounding::same(8.0)).min_size(egui::vec2(160.0, 34.0))).clicked() {
                 let plat = match self.payload_platform.as_str() {
                     "windows" => Platform::Windows,
                     "macos" => Platform::MacOS,
@@ -1165,17 +1599,17 @@ impl UltimateApp {
             code_block(ui, "payload", &self.payload_generated, 320.0);
         } else {
             ui.add_space(8.0);
-            ui.label(RichText::new("Generated payload will appear here.").size(12.0).color(theme::TEXT_FAINT));
+            ui.label(RichText::new("Generated payload will appear here.").size(12.0).color(theme::cur().TEXT_FAINT));
         }
     }
 
     // ── Report Viewer (rendered in-app) ────────────────────────
     fn tab_report(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Report Viewer").size(22.0).strong().color(theme::TEXT));
-        ui.label(RichText::new("Open a scan JSON file — the report is rendered right here, no browser needed.").size(12.5).color(theme::TEXT_DIM));
+        ui.label(RichText::new("Report Viewer").size(22.0).strong().color(theme::cur().TEXT));
+        ui.label(RichText::new("Open a scan JSON file — the report is rendered right here, no browser needed.").size(12.5).color(theme::cur().TEXT_DIM));
         ui.add_space(8.0);
 
-        card(ui, "Load Scan Result", theme::OK, |ui| {
+        card(ui, "Load Scan Result", theme::cur().OK, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "JSON FILE");
                 ui.add(egui::TextEdit::singleline(&mut self.rv_json_path).hint_text("~/scan_results.json").desired_width(360.0));
@@ -1200,7 +1634,7 @@ impl UltimateApp {
             });
             if let Some(err) = &self.rv_error {
                 ui.add_space(6.0);
-                ui.label(RichText::new(format!("✗ {}", err)).color(theme::DANGER).size(12.0));
+                ui.label(RichText::new(format!("✗ {}", err)).color(theme::cur().DANGER).size(12.0));
             }
         });
 
@@ -1209,6 +1643,14 @@ impl UltimateApp {
                 if ui.button("▤  Rendered Report").clicked() { self.rv_show_json = false; }
                 if ui.button("{}  JSON Data").clicked() { self.rv_show_json = true; }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("📕 Export PDF").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().add_filter("PDF Report", &["pdf"]).set_file_name("htool_report.pdf").save_file() {
+                            match export_pdf_report(&res, path.display().to_string().as_str()) {
+                                Ok(_) => self.add_log(format!("PDF report exported to {}", path.display())),
+                                Err(e) => self.add_log(format!("Export failed: {}", e)),
+                            }
+                        }
+                    }
                     if ui.button("📄 Export HTML").clicked() {
                         if let Some(path) = rfd::FileDialog::new().add_filter("HTML Report", &["html"]).set_file_name("htool_report.html").save_file() {
                             let _ = save_html_report(&res, path.display().to_string().as_str());
@@ -1230,13 +1672,13 @@ impl UltimateApp {
 
     // ── CVE Search ─────────────────────────────────────────────
     fn tab_cve(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Offline CVE Database").size(22.0).strong().color(theme::TEXT));
+        ui.label(RichText::new("Offline CVE Database").size(22.0).strong().color(theme::cur().TEXT));
         ui.add_space(8.0);
-        card(ui, "Search", theme::DANGER, |ui| {
+        card(ui, "Search", theme::cur().DANGER, |ui| {
             ui.horizontal(|ui| {
                 field_label(ui, "QUERY");
                 let resp = ui.add(egui::TextEdit::singleline(&mut self.cve_query).hint_text("Apache, Log4j, Redis, WordPress…").desired_width(300.0));
-                let search_clicked = ui.add(egui::Button::new(RichText::new("⌕  Search").color(Color32::BLACK)).fill(theme::ACCENT).rounding(Rounding::same(6.0))).clicked()
+                let search_clicked = ui.add(egui::Button::new(RichText::new("⌕  Search").color(Color32::BLACK)).fill(theme::cur().ACCENT).rounding(Rounding::same(6.0))).clicked()
                     || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
                 if search_clicked && !self.cve_query.is_empty() {
                     self.cve_results = search_cves(&self.cve_query);
@@ -1247,24 +1689,24 @@ impl UltimateApp {
         });
 
         if self.cve_results.is_empty() {
-            ui.label(RichText::new("Type a keyword above, e.g. \"Apache\", \"nginx\", \"PHP\" — results come from the built-in offline database.").size(12.0).color(theme::TEXT_FAINT));
+            ui.label(RichText::new("Type a keyword above, e.g. \"Apache\", \"nginx\", \"PHP\" — results come from the built-in offline database.").size(12.0).color(theme::cur().TEXT_FAINT));
         } else {
-            ui.label(RichText::new(format!("{} matching entries", self.cve_results.len())).size(13.0).color(theme::TEXT_DIM));
+            ui.label(RichText::new(format!("{} matching entries", self.cve_results.len())).size(13.0).color(theme::cur().TEXT_DIM));
             ScrollArea::vertical().id_source("cve_scroll").show(ui, |ui| {
                 for cve in &self.cve_results {
-                    let sev_color = if cve.cvss_score >= 9.0 { theme::DANGER } else if cve.cvss_score >= 7.0 { theme::ORANGE } else { theme::WARN };
-                    egui::Frame::default().fill(theme::BG_CARD).rounding(Rounding::same(10.0))
-                        .stroke(Stroke::new(1.0_f32, theme::STROKE)).inner_margin(Margin::same(12.0))
+                    let sev_color = if cve.cvss_score >= 9.0 { theme::cur().DANGER } else if cve.cvss_score >= 7.0 { theme::cur().ORANGE } else { theme::cur().WARN };
+                    egui::Frame::default().fill(theme::cur().BG_CARD).rounding(Rounding::same(10.0))
+                        .stroke(Stroke::new(1.0_f32, theme::cur().STROKE)).inner_margin(Margin::same(12.0))
                         .outer_margin(egui::Margin { bottom: 8.0, ..Default::default() })
                         .show(ui, |ui| {
                             ui.set_min_width(ui.available_width());
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(&cve.id).strong().color(theme::ACCENT).monospace());
+                                ui.label(RichText::new(&cve.id).strong().color(theme::cur().ACCENT).monospace());
                                 chip(ui, &format!("CVSS {:.1}", cve.cvss_score), sev_color, sev_color.gamma_multiply(0.12));
-                                chip(ui, &cve.published_year.to_string(), theme::TEXT_DIM, theme::BG_ROW);
+                                chip(ui, &cve.published_year.to_string(), theme::cur().TEXT_DIM, theme::cur().BG_ROW);
                             });
-                            ui.label(RichText::new(format!("{} ({})", cve.product, cve.version_affected)).size(12.0).color(theme::CYAN));
-                            ui.label(RichText::new(&cve.description).size(12.5).color(theme::TEXT_DIM));
+                            ui.label(RichText::new(format!("{} ({})", cve.product, cve.version_affected)).size(12.0).color(theme::cur().CYAN));
+                            ui.label(RichText::new(&cve.description).size(12.5).color(theme::cur().TEXT_DIM));
                         });
                 }
             });
@@ -1278,86 +1720,86 @@ impl UltimateApp {
 
         // Header banner
         egui::Frame::default()
-            .fill(theme::BG_CARD).rounding(Rounding::same(12.0))
-            .stroke(Stroke::new(1.0_f32, theme::STROKE))
+            .fill(theme::cur().BG_CARD).rounding(Rounding::same(12.0))
+            .stroke(Stroke::new(1.0_f32, theme::cur().STROKE))
             .inner_margin(Margin::same(16.0))
             .outer_margin(egui::Margin { bottom: 12.0, ..Default::default() })
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("◉ SCAN REPORT").size(19.0).strong().color(theme::ACCENT).monospace());
+                    ui.label(RichText::new("◉ SCAN REPORT").size(19.0).strong().color(theme::cur().ACCENT).monospace());
                     chip(ui, sev, sev_c, sev_c.gamma_multiply(0.13));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new(&result.timestamp).size(11.5).color(theme::TEXT_FAINT).monospace());
+                        ui.label(RichText::new(&result.timestamp).size(11.5).color(theme::cur().TEXT_FAINT).monospace());
                     });
                 });
-                ui.label(RichText::new(format!("target: {}", result.target)).size(13.0).color(theme::TEXT_DIM).monospace());
+                ui.label(RichText::new(format!("target: {}", result.target)).size(13.0).color(theme::cur().TEXT_DIM).monospace());
             });
 
         // Summary stat grid (5 per row)
         egui::Grid::new("stat_grid").min_col_width(118.0).spacing([8.0, 8.0]).show(ui, |ui| {
-            stat_card(ui, result.open_ports.len(), "OPEN PORTS", theme::ACCENT);
-            stat_card(ui, result.sql_vulnerable.len(), "SQL INJECTION", theme::DANGER);
-            stat_card(ui, result.xss_vulnerable.len(), "XSS", theme::DANGER);
-            stat_card(ui, result.subdomain_takeovers.len(), "TAKEOVERS", theme::DANGER);
-            stat_card(ui, result.zone_transfers.len(), "ZONE TRANSFERS", theme::ORANGE);
+            stat_card(ui, result.open_ports.len(), "OPEN PORTS", theme::cur().ACCENT);
+            stat_card(ui, result.sql_vulnerable.len(), "SQL INJECTION", theme::cur().DANGER);
+            stat_card(ui, result.xss_vulnerable.len(), "XSS", theme::cur().DANGER);
+            stat_card(ui, result.subdomain_takeovers.len(), "TAKEOVERS", theme::cur().DANGER);
+            stat_card(ui, result.zone_transfers.len(), "ZONE TRANSFERS", theme::cur().ORANGE);
             ui.end_row();
-            stat_card(ui, result.cve_matches.len(), "CVE MATCHES", theme::WARN);
-            stat_card(ui, result.discovered_paths.len(), "PATHS FOUND", theme::CYAN);
-            stat_card(ui, result.subdomains.len(), "SUBDOMAINS", theme::CYAN);
-            stat_card(ui, result.technologies.len(), "TECHNOLOGIES", theme::PURPLE);
-            stat_card(ui, result.errors.len(), "ERRORS", theme::TEXT_DIM);
+            stat_card(ui, result.cve_matches.len(), "CVE MATCHES", theme::cur().WARN);
+            stat_card(ui, result.discovered_paths.len(), "PATHS FOUND", theme::cur().CYAN);
+            stat_card(ui, result.subdomains.len(), "SUBDOMAINS", theme::cur().CYAN);
+            stat_card(ui, result.technologies.len(), "TECHNOLOGIES", theme::cur().PURPLE);
+            stat_card(ui, result.errors.len(), "ERRORS", theme::cur().TEXT_DIM);
             ui.end_row();
         });
         ui.add_space(4.0);
 
         // Findings
-        card(ui, &format!("🔓 Open Ports ({})", result.open_ports.len()), theme::ACCENT, |ui| {
-            chip_grid(ui, &result.open_ports.iter().map(|(p, s)| format!("{} · {}", p, s)).collect::<Vec<_>>(), theme::CYAN);
+        card(ui, &format!("🔓 Open Ports ({})", result.open_ports.len()), theme::cur().ACCENT, |ui| {
+            chip_grid(ui, &result.open_ports.iter().map(|(p, s)| format!("{} · {}", p, s)).collect::<Vec<_>>(), theme::cur().CYAN);
         });
-        card(ui, &format!("🐍 SQL Injection ({})", result.sql_vulnerable.len()), theme::DANGER, |ui| {
-            vuln_list(ui, &result.sql_vulnerable, theme::DANGER);
+        card(ui, &format!("🐍 SQL Injection ({})", result.sql_vulnerable.len()), theme::cur().DANGER, |ui| {
+            vuln_list(ui, &result.sql_vulnerable, theme::cur().DANGER);
         });
-        card(ui, &format!("🕸 Cross-Site Scripting ({})", result.xss_vulnerable.len()), theme::DANGER, |ui| {
-            vuln_list(ui, &result.xss_vulnerable, theme::ORANGE);
+        card(ui, &format!("🕸 Cross-Site Scripting ({})", result.xss_vulnerable.len()), theme::cur().DANGER, |ui| {
+            vuln_list(ui, &result.xss_vulnerable, theme::cur().ORANGE);
         });
         if !result.subdomain_takeovers.is_empty() {
-            card(ui, &format!("⚠ Subdomain Takeovers ({})", result.subdomain_takeovers.len()), theme::DANGER, |ui| {
-                vuln_list(ui, &result.subdomain_takeovers, theme::DANGER);
+            card(ui, &format!("⚠ Subdomain Takeovers ({})", result.subdomain_takeovers.len()), theme::cur().DANGER, |ui| {
+                vuln_list(ui, &result.subdomain_takeovers, theme::cur().DANGER);
             });
         }
         if !result.zone_transfers.is_empty() {
-            card(ui, &format!("⚠ DNS Zone Transfers ({})", result.zone_transfers.len()), theme::DANGER, |ui| {
-                vuln_list(ui, &result.zone_transfers, theme::DANGER);
+            card(ui, &format!("⚠ DNS Zone Transfers ({})", result.zone_transfers.len()), theme::cur().DANGER, |ui| {
+                vuln_list(ui, &result.zone_transfers, theme::cur().DANGER);
             });
         }
         if !result.cve_matches.is_empty() {
-            card(ui, &format!("⚠ Known CVEs ({})", result.cve_matches.len()), theme::ORANGE, |ui| {
-                vuln_list(ui, &result.cve_matches, theme::WARN);
+            card(ui, &format!("⚠ Known CVEs ({})", result.cve_matches.len()), theme::cur().ORANGE, |ui| {
+                vuln_list(ui, &result.cve_matches, theme::cur().WARN);
             });
         }
-        card(ui, &format!("📁 Discovered Paths ({})", result.discovered_paths.len()), theme::CYAN, |ui| {
-            chip_grid(ui, &result.discovered_paths, theme::CYAN);
+        card(ui, &format!("📁 Discovered Paths ({})", result.discovered_paths.len()), theme::cur().CYAN, |ui| {
+            chip_grid(ui, &result.discovered_paths, theme::cur().CYAN);
         });
         if !result.subdomains.is_empty() {
-            card(ui, &format!("🌐 Subdomains ({})", result.subdomains.len()), theme::CYAN, |ui| {
-                chip_grid(ui, &result.subdomains, theme::CYAN);
+            card(ui, &format!("🌐 Subdomains ({})", result.subdomains.len()), theme::cur().CYAN, |ui| {
+                chip_grid(ui, &result.subdomains, theme::cur().CYAN);
             });
         }
         if !result.technologies.is_empty() {
-            card(ui, &format!("🛠 Detected Technologies ({})", result.technologies.len()), theme::PURPLE, |ui| {
-                chip_grid(ui, &result.technologies, theme::CYAN);
+            card(ui, &format!("🛠 Detected Technologies ({})", result.technologies.len()), theme::cur().PURPLE, |ui| {
+                chip_grid(ui, &result.technologies, theme::cur().CYAN);
             });
         }
-        card(ui, "🔒 SSL / TLS", theme::ACCENT, |ui| {
+        card(ui, "🔒 SSL / TLS", theme::cur().ACCENT, |ui| {
             code_block(ui, "ssl", &result.ssl_info, 90.0);
         });
-        card(ui, "🛡 Security Headers", theme::ACCENT, |ui| {
+        card(ui, "🛡 Security Headers", theme::cur().ACCENT, |ui| {
             code_block(ui, "headers", &result.security_headers, 140.0);
         });
         if !result.errors.is_empty() {
-            card(ui, &format!("❌ Errors ({})", result.errors.len()), theme::TEXT_DIM, |ui| {
-                vuln_list(ui, &result.errors, theme::TEXT_FAINT);
+            card(ui, &format!("❌ Errors ({})", result.errors.len()), theme::cur().TEXT_DIM, |ui| {
+                vuln_list(ui, &result.errors, theme::cur().TEXT_FAINT);
             });
         }
     }

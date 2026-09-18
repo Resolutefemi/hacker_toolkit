@@ -188,3 +188,12 @@ pub fn get_service_name(port: u16) -> &'static str {
         _ => "Unknown",
     }
 }
+/// Resolve (and create) the htool config directory: ~/.htool
+pub fn htool_dir() -> std::path::PathBuf {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+    let dir = std::path::PathBuf::from(home).join(".htool");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
