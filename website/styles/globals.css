@@ -2,14 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --matrix-green: #00ff41;
-  --cyber-cyan: #0aefff;
-  --neon-pink: #ff0055;
-  --bg-dark: #080c16;
-  --bg-card: #0c1220;
+  --accent: #00e69e;
+  --cyan: #38bdf8;
+  --bg-dark: #05080f;
+  --bg-card: #111729;
 }
 
 * {
@@ -22,120 +21,147 @@ html {
 
 body {
   background: var(--bg-dark);
-  color: #c8d7e6;
+  color: #e2e8f0;
   font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
+::selection {
+  background: rgba(0, 230, 158, 0.35);
+  color: #fff;
 }
 
-::-webkit-scrollbar-track {
-  background: #060a12;
-}
-
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #05080f; }
 ::-webkit-scrollbar-thumb {
-  background: #00ff41;
-  border-radius: 3px;
+  background: #1c2a48;
+  border-radius: 8px;
+  border: 2px solid #05080f;
+}
+::-webkit-scrollbar-thumb:hover { background: #00e69e; }
+
+/* ─── Grid + gradient backgrounds ─── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 55%, transparent 100%);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #0aefff;
+.hero-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 620px 340px at 78% 18%, rgba(0, 230, 158, 0.12), transparent 65%),
+    radial-gradient(ellipse 560px 320px at 12% 8%, rgba(56, 189, 248, 0.10), transparent 65%);
 }
 
-/* Button flash */
+/* ─── Gradient text ─── */
+.text-gradient {
+  background: linear-gradient(96deg, #00e69e 10%, #38bdf8 55%, #a78bfa 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── Glass surfaces ─── */
+.glass {
+  background: rgba(17, 23, 41, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ─── Card hover glow ─── */
+.card-glow {
+  position: relative;
+  transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease;
+}
+.card-glow:hover {
+  border-color: rgba(0, 230, 158, 0.45);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 40px rgba(0, 230, 158, 0.10), 0 2px 8px rgba(0,0,0,0.35);
+}
+
+/* ─── Button flash sweep ─── */
 .btn-flash {
   position: relative;
   overflow: hidden;
 }
-
 .btn-flash::after {
   content: '';
   position: absolute;
   top: -50%;
-  left: -50%;
-  width: 200%;
+  left: -60%;
+  width: 60%;
   height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent,
-    rgba(255, 255, 255, 0.1),
-    transparent
-  );
-  transform: translateX(-100%);
-  transition: transform 0.6s;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: skewX(-20deg) translateX(-160%);
+  transition: transform 0.7s ease;
 }
-
 .btn-flash:hover::after {
-  transform: translateX(100%);
+  transform: skewX(-20deg) translateX(320%);
 }
 
-/* Terminal window */
+/* ─── Terminal ─── */
 .terminal-window {
-  border: 1px solid rgba(0, 255, 65, 0.3);
-  border-radius: 8px;
+  border: 1px solid rgba(0, 230, 158, 0.22);
+  border-radius: 12px;
   overflow: hidden;
+  background: rgba(5, 8, 17, 0.92);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.02) inset;
 }
-
 .terminal-header {
-  background: rgba(0, 255, 65, 0.05);
-  padding: 8px 16px;
+  background: rgba(0, 230, 158, 0.05);
+  padding: 9px 14px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  gap: 7px;
+  border-bottom: 1px solid rgba(0, 230, 158, 0.14);
+}
+.terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
+.terminal-content { font-family: 'JetBrains Mono', monospace; line-height: 1.75; }
+
+/* ─── Scroll reveal ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity .7s cubic-bezier(.2,.65,.3,1), transform .7s cubic-bezier(.2,.65,.3,1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-.terminal-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+/* ─── Marquee strip ─── */
+.marquee {
+  overflow: hidden;
+  position: relative;
+}
+.marquee-track {
+  display: flex;
+  gap: 3rem;
+  width: max-content;
+  animation: marquee 26s linear infinite;
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
-.terminal-content {
-  padding: 16px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  line-height: 1.6;
+/* ─── App mock (GUI showcase) ─── */
+.app-mock {
+  background: #0a0e1a;
+  border: 1px solid #2c3858;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.6), 0 0 60px rgba(0,230,158,0.06);
 }
 
-/* Tiny text utility for labels */
-.text-2xs {
-  font-size: 0.625rem;
-  line-height: 0.875rem;
-}
-
-/* Mobile matrix-bg is lighter to not dominate */
-@media (max-width: 640px) {
-  .matrix-bg {
-    opacity: 0.02;
-  }
-  
-  .terminal-content {
-    font-size: 11px;
-    line-height: 1.5;
-  }
-  
-  .glitch::before,
-  .glitch::after {
-    display: none;
-  }
-  
-  .scan-line::after {
-    height: 1px;
-    opacity: 0.3;
-  }
-  
-  /* Smaller animation overhead on mobile */
-  .card-glow::before {
-    animation-duration: 6s;
-  }
-}
-
-/* Tablet adjustments */
-@media (min-width: 641px) and (max-width: 1024px) {
-  .terminal-content {
-    font-size: 13px;
-  }
-}
+/* ─── FAQ ─── */
+details summary::-webkit-details-marker { display: none; }
+details[open] .faq-chevron { transform: rotate(180deg); }
+.faq-chevron { transition: transform .25s ease; }

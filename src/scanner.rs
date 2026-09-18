@@ -46,6 +46,30 @@ impl ScanResult {
             errors: Vec::new(),
         }
     }
+
+    /// Total number of security findings across all categories
+    pub fn total_findings(&self) -> usize {
+        self.sql_vulnerable.len()
+            + self.xss_vulnerable.len()
+            + self.subdomain_takeovers.len()
+            + self.zone_transfers.len()
+            + self.cve_matches.len()
+    }
+
+    /// Highest severity level found: Critical, High, Medium, Low or Info
+    pub fn severity(&self) -> &'static str {
+        if !self.subdomain_takeovers.is_empty() || !self.zone_transfers.is_empty() {
+            "CRITICAL"
+        } else if !self.sql_vulnerable.is_empty() || !self.xss_vulnerable.is_empty() || !self.cve_matches.is_empty() {
+            "HIGH"
+        } else if !self.security_headers.is_empty() && self.security_headers.contains("No important security headers") {
+            "MEDIUM"
+        } else if self.total_findings() > 0 || !self.open_ports.is_empty() {
+            "LOW"
+        } else {
+            "INFO"
+        }
+    }
 }
 
 /// Scan configuration
@@ -410,20 +434,21 @@ pub async fn run_full_scan(
 
     // 6. SSL
     result.ssl_info = check_ssl(&host).await;
-    // WAF Detection
+    // WAF Detection (kept separately, merged after fingerprinting below)
     let waf_results = detect_waf(&client, &base_url).await;
-    if !waf_results.is_empty() {
-        result.technologies.push("[WAF] ----".to_string());
-        result.technologies.extend(waf_results);
-    }
 
     // 7. Security headers
     result.security_headers = get_security_headers(&client, &base_url).await;
     // 8. CVE matches
     result.cve_matches = cve::check_cves(&client, &base_url).await;
-    
-    // 9. Technology Fingerprinting
-    result.technologies = fingerprint_technologies(&client, &base_url, &result.security_headers).await;
+
+    // 9. Technology Fingerprinting (merge, never overwrite WAF results)
+    let mut all_techs = fingerprint_technologies(&client, &base_url, &result.security_headers).await;
+    for waf in waf_results {
+        all_techs.push(format!("[WAF] {}", waf));
+    }
+    all_techs.dedup();
+    result.technologies = all_techs;
 
     // 10. Subdomain Takeovers
     if !result.subdomains.is_empty() {

@@ -1,6 +1,6 @@
 [package]
 name = "htool"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2021"
 authors = ["Resolutefemi"]
 description = "A multi-threaded networking utility and vulnerability scanner GUI written in Rust using egui."
@@ -50,6 +50,7 @@ mimalloc = "0.1.52"
 base64 = "0.22"
 urlencoding = "2.1"
 hickory-resolver = "0.24"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [profile.release]
 # High optimisation level (3) for speed and memory

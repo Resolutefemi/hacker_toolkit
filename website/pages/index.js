@@ -1,147 +1,226 @@
 import Head from 'next/head'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   IconScanner, IconStress, IconCredential, IconSpam,
   IconPayload, IconReport, IconCve, IconHtmlViewer, IconWaf,
   OsWindows, OsMacos, OsLinux, HIcon
 } from '../components/icons'
 
-// ─── OS Detection Hook ───
+const RELEASE_BASE = 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download'
+const RELEASES_PAGE = 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest'
+
+const ASSETS = {
+  windows: `${RELEASE_BASE}/htool-x86_64-pc-windows-msvc.zip`,
+  linux: `${RELEASE_BASE}/htool-x86_64-unknown-linux-gnu.tar.gz`,
+  macos: `${RELEASE_BASE}/htool-x86_64-apple-darwin.tar.gz`,
+}
+
+// ─── Hooks ─────────────────────────────────────────────────
+
 function useOs() {
-  const [os, setOs] = useState('linux')
+  const [os, setOs] = useState('windows')
   useEffect(() => {
     const ua = navigator.userAgent.toLowerCase()
     if (ua.includes('win')) setOs('windows')
     else if (ua.includes('mac')) setOs('macos')
-    else setOs('linux')
+    else if (ua.includes('linux') || ua.includes('x11')) setOs('linux')
+    else setOs('windows')
   }, [])
   return os
 }
 
-// ─── Header ───
-function Header() {
-  const [menuOpen, setMenuOpen] = useState(false)
+function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll('.reveal')
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible')
+          io.unobserve(e.target)
+        }
+      })
+    }, { threshold: 0.12 })
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+}
+
+function useLatestRelease() {
+  const [rel, setRel] = useState({ tag: 'v3.1.0', assets: 3, loading: true })
+  useEffect(() => {
+    fetch('https://api.github.com/repos/Resolutefemi/hacker_toolkit/releases/latest')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setRel({ tag: d.tag_name, assets: d.assets?.length || 3, loading: false }))
+      .catch(() => setRel({ tag: 'v3.1.0', assets: 3, loading: false }))
+  }, [])
+  return rel
+}
+
+// ─── Typing terminal ───────────────────────────────────────
+
+const TERMINAL_LINES = [
+  { pre: '$ ', cmd: true, parts: [{ t: 'htool scan', c: 'text-matrix-500 font-bold' }, { t: ' https://target.com', c: 'text-cyber-cyan' }] },
+  { dim: true, text: '▸ multi-threaded async scan started (10 rps)' },
+  { text: '✓ Open ports:', accent: true, value: ' 22·SSH  80·HTTP  443·HTTPS  3306·MySQL' },
+  { text: '⚠ SQL injection:', danger: true, value: ' /item?id=1  /product?cat=2' },
+  { text: '⚠ XSS:', danger: true, value: ' /search?q=' },
+  { text: '◈ WAF:', orange: true, value: ' Cloudflare WAF detected' },
+  { text: '🛠 Tech:', purple: true, value: ' Nginx · PHP 8.1 · WordPress v6.4' },
+  { dim: true, text: '▸ severity: HIGH · 12.4s total' },
+  { text: '✓ Report saved →', accent: true, value: ' htool_report.html' },
+]
+
+function Terminal() {
+  const [lines, setLines] = useState(0)
+  useEffect(() => {
+    if (lines >= TERMINAL_LINES.length) {
+      const restart = setTimeout(() => setLines(0), 5200)
+      return () => clearTimeout(restart)
+    }
+    const t = setTimeout(() => setLines(l => l + 1), lines === 0 ? 700 : 520)
+    return () => clearTimeout(t)
+  }, [lines])
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-cyber-dark/95 backdrop-blur-lg border-b border-matrix-500/20">
-      <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2">
-            <HIcon className="w-7 h-7 sm:w-8 sm:h-8" />
-            <span className="text-matrix-500 text-xl sm:text-2xl font-bold font-mono">htool</span>
+    <div className="terminal-window w-full max-w-xl text-left">
+      <div className="terminal-header">
+        <div className="terminal-dot" style={{ background: '#f87171' }} />
+        <div className="terminal-dot" style={{ background: '#fbbf24' }} />
+        <div className="terminal-dot" style={{ background: '#34d399' }} />
+        <span className="text-cyber-faint text-xs ml-2 font-mono">htool — zsh</span>
+      </div>
+      <div className="terminal-content p-4 sm:p-5 overflow-x-auto text-[12.5px] sm:text-[13px] min-h-[218px]">
+        {TERMINAL_LINES.slice(0, lines).map((l, i) => (
+          <div key={i} className="whitespace-nowrap">
+            {l.cmd ? (
+              <>
+                <span className="text-matrix-500">{l.pre}</span>
+                {l.parts.map((p, j) => <span key={j} className={p.c}>{p.t}</span>)}
+              </>
+            ) : (
+              <span className={l.dim ? 'text-cyber-faint' : 'text-cyber-dim'}>
+                {l.text && <span className={l.accent ? 'text-matrix-500' : l.danger ? 'text-red-400' : l.orange ? 'text-cyber-orange' : l.purple ? 'text-cyber-purple' : ''}>{l.text}</span>}
+                {l.value && <span>{l.value}</span>}
+              </span>
+            )}
           </div>
-          <span className="text-cyber-dim text-xs hidden sm:block font-mono">v3.0</span>
-        </div>
+        ))}
+        {lines >= TERMINAL_LINES.length && (
+          <span className="text-matrix-500">$ <span className="inline-block w-2 h-4 bg-matrix-500 align-middle animate-blink" /></span>
+        )}
+        {lines < TERMINAL_LINES.length && (
+          <span className="text-matrix-500">{TERMINAL_LINES[lines].cmd ? '$ ' : ''}<span className="inline-block w-2 h-4 bg-matrix-500/70 align-middle animate-blink" /></span>
+        )}
+      </div>
+    </div>
+  )
+}
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
-          <a href="#features" className="text-cyber-dim hover:text-matrix-500 transition-colors text-sm">Features</a>
-          <a href="#download" className="text-cyber-dim hover:text-matrix-500 transition-colors text-sm">Download</a>
-          <a href="#author" className="text-cyber-dim hover:text-matrix-500 transition-colors text-sm">Author</a>
-          <a href="#download" className="bg-matrix-500 text-black px-4 py-2 rounded font-semibold text-sm hover:bg-matrix-400 transition-all btn-flash">
-            Get htool
+// ─── Header ────────────────────────────────────────────────
+
+function Header() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 24)
+    window.addEventListener('scroll', fn)
+    return () => window.removeEventListener('scroll', fn)
+  }, [])
+
+  const links = [['#features', 'Features'], ['#app', 'App UI'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#author', 'Author']]
+
+  return (
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'glass border-b border-white/5' : 'bg-transparent'}`}>
+      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        <a href="#top" className="flex items-center gap-2.5 group">
+          <div className="w-8 h-8 rounded-lg bg-matrix-500/15 border border-matrix-500/40 flex items-center justify-center group-hover:bg-matrix-500/25 transition-colors">
+            <HIcon className="w-5 h-5" />
+          </div>
+          <span className="text-white text-xl font-bold font-mono tracking-tight">htool</span>
+          <span className="text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/30 px-1.5 py-0.5 rounded-full">v3.1</span>
+        </a>
+
+        <nav className="hidden md:flex items-center gap-7">
+          {links.map(([href, label]) => (
+            <a key={href} href={href} className="text-cyber-dim hover:text-matrix-500 transition-colors text-[13.5px] font-medium">{label}</a>
+          ))}
+          <a href={ASSETS.windows} className="bg-matrix-500 text-black px-4 py-2 rounded-lg font-semibold text-[13.5px] hover:bg-matrix-400 hover:shadow-glow-accent transition-all btn-flash flex items-center gap-1.5">
+            <OsWindows className="w-3.5 h-3.5" /> Download
           </a>
         </nav>
 
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="md:hidden flex flex-col gap-1.5 p-2 rounded hover:bg-matrix-500/10 transition-colors"
-          aria-label="Toggle menu"
-        >
+        <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden flex flex-col gap-1.5 p-2" aria-label="Toggle menu">
           <span className={`block w-6 h-0.5 bg-matrix-500 transition-all ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
           <span className={`block w-6 h-0.5 bg-matrix-500 transition-all ${menuOpen ? 'opacity-0' : ''}`} />
           <span className={`block w-6 h-0.5 bg-matrix-500 transition-all ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
         </button>
       </div>
 
-      {/* Mobile menu overlay */}
-      <div className={`md:hidden fixed inset-0 bg-cyber-dark/98 backdrop-blur-xl z-40 transition-all duration-300 ${menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="flex flex-col items-center justify-center h-full gap-8">
-          <a
-            href="#features"
-            onClick={() => setMenuOpen(false)}
-            className="text-2xl text-cyber-dim hover:text-matrix-500 transition-colors font-mono"
-          >
-            [ Features ]
-          </a>
-          <a
-            href="#download"
-            onClick={() => setMenuOpen(false)}
-            className="text-2xl text-cyber-dim hover:text-matrix-500 transition-colors font-mono"
-          >
-            [ Download ]
-          </a>
-          <a
-            href="#author"
-            onClick={() => setMenuOpen(false)}
-            className="text-2xl text-cyber-dim hover:text-matrix-500 transition-colors font-mono"
-          >
-            [ Author ]
-          </a>
-          <a
-            href="#download"
-            onClick={() => setMenuOpen(false)}
-            className="mt-4 bg-matrix-500 text-black px-10 py-4 rounded-lg font-bold text-xl hover:bg-matrix-400 transition-all btn-flash"
-          >
-            Get htool
-          </a>
+      <div className={`md:hidden fixed inset-0 top-16 bg-cyber-dark/97 backdrop-blur-xl transition-all duration-300 ${menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="flex flex-col items-center justify-center h-full gap-7">
+          {links.map(([href, label]) => (
+            <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-2xl text-cyber-dim hover:text-matrix-500 font-mono">[ {label} ]</a>
+          ))}
         </div>
       </div>
     </header>
   )
 }
 
-// ─── Hero ───
+// ─── Hero ──────────────────────────────────────────────────
+
 function Hero() {
-  return (      <section className="min-h-[90vh] sm:min-h-screen flex items-center justify-center relative pt-14 sm:pt-16">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center relative z-10">
-        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold mb-4 sm:mb-6">
-          <span className="text-matrix-500">htool</span>
-          <br />
-          <span className="text-cyber-bright text-2xl sm:text-3xl md:text-4xl font-light block mt-2 sm:mt-0">
-            Cybersecurity Toolkit
-          </span>
-        </h1>
-        <p className="text-cyber-dim text-base sm:text-lg md:text-xl max-w-3xl mx-auto mb-6 sm:mb-8 font-light px-2 sm:px-0">
-          The ultimate all-in-one security testing framework by{' '}
-          <span className="text-matrix-500 font-semibold">Resolute Femi</span>.
-          Built with Rust for speed. Features advanced <strong className="text-cyber-bright">tools for checking vulnerability</strong>,
-          stress testing, credential analysis, and payload generation.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 px-4 sm:px-0">
-          <a href="#download" className="bg-matrix-500 text-black px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg hover:bg-matrix-400 transition-all btn-flash shadow-lg shadow-matrix-500/25 w-full sm:w-auto text-center">
-            ⬇ Download Now
-          </a>
-          <a href="#features" className="border border-cyber-cyan/50 text-cyber-cyan px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-cyber-cyan/10 transition-all w-full sm:w-auto text-center">
-            View Features →
-          </a>
+  const os = useOs()
+  const rel = useLatestRelease()
+  const stats = [
+    ['9', 'modules'], ['50+', 'CVE entries'], ['100+', 'tech fingerprints'], ['7', 'payload platforms'],
+  ]
+
+  return (
+    <section id="top" className="hero-glow relative pt-32 pb-20 md:pt-40 md:pb-28 overflow-hidden">
+      <div className="absolute inset-0 bg-grid" />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-12 items-center">
+        <div>
+          <div className="inline-flex items-center gap-2 bg-matrix-500/10 border border-matrix-500/30 text-matrix-500 text-xs font-mono px-3.5 py-1.5 rounded-full mb-7">
+            <span className="w-1.5 h-1.5 rounded-full bg-matrix-500 animate-pulse" />
+            v3.1.0 — redesigned UI · in-app report viewer
+          </div>
+          <h1 className="font-display text-[2.6rem] leading-[1.06] sm:text-6xl xl:text-[4.4rem] font-bold text-white mb-6">
+            The hacker toolkit,
+            <br />
+            <span className="text-gradient whitespace-nowrap">re-engineered.</span>
+          </h1>
+          <p className="text-cyber-dim text-base sm:text-lg max-w-xl mb-8 leading-relaxed">
+            <span className="text-matrix-500 font-semibold">htool</span> packs vulnerability scanning, stress testing,
+            credential auditing and payload generation into one blazing-fast Rust binary — with a
+            brand-new modern dashboard and reports you can read right inside the app.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3.5 mb-9">
+            <a href={ASSETS[os]} className="bg-matrix-500 text-black px-7 py-4 rounded-xl font-bold text-base hover:bg-matrix-400 hover:shadow-glow-accent transition-all btn-flash flex items-center justify-center gap-2.5 shadow-card">
+              <OsWindows className="w-5 h-5" />
+              <span className="flex flex-col items-start leading-tight">
+                <span>Download for {os === 'windows' ? 'Windows' : os === 'macos' ? 'macOS' : 'Linux'}</span>
+                <span className="text-[10px] font-mono opacity-70">{os === 'windows' ? 'htool-x86_64.exe · GUI + CLI' : 'tar.gz · GUI + CLI'}</span>
+              </span>
+            </a>
+            <a href="#features" className="border border-white/15 text-cyber-bright px-7 py-4 rounded-xl font-semibold hover:border-matrix-500/60 hover:text-matrix-500 transition-all flex items-center justify-center gap-2">
+              Explore features <span className="text-matrix-500">→</span>
+            </a>
+          </div>
+          <div className="grid grid-cols-4 gap-3 max-w-md">
+            {stats.map(([n, l]) => (
+              <div key={l} className="text-center sm:text-left">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-matrix-500">{n}</div>
+                <div className="text-[10.5px] uppercase tracking-wider text-cyber-faint">{l}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Terminal Demo */}
-        <div className="terminal-window max-w-2xl mx-2 sm:mx-auto text-left">
-          <div className="terminal-header px-3 sm:px-4">
-            <div className="terminal-dot w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ background: '#ff0055' }} />
-            <div className="terminal-dot w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ background: '#ffa500' }} />
-            <div className="terminal-dot w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ background: '#00ff41' }} />
-            <span className="text-cyber-dim text-2xs sm:text-xs ml-1 sm:ml-2 font-mono">htool@scan:~</span>
-          </div>
-          <div className="terminal-content p-3 sm:p-4 overflow-x-auto">
-            <span className="text-matrix-500">$</span>{' '}
-            <span className="text-cyber-bright">htool scan</span>{' '}
-            <span className="text-cyber-cyan">example.com</span>
-            <br />
-            <span className="text-cyber-dim">🔍 Starting scan...</span>
-            <br />
-            <span className="text-matrix-500">✅ Open ports:</span> 22 80 443 3306
-            <br />
-            <span className="text-cyber-cyan">🐍 SQLi:</span> 2 URLs
-            <br />
-            <span className="text-cyber-orange">🕸️ XSS:</span> 1 URL
-            <br />
-            <span className="text-matrix-500">🛠️ Services:</span> Nginx, PHP, WP
-            <br />
-            <span className="text-cyber-dim mt-1 sm:mt-2 block">Scan: 12.4s</span>
+        <div className="flex flex-col items-center gap-4 animate-float-slow">
+          <Terminal />
+          <div className="flex items-center gap-2 text-cyber-faint text-xs font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-matrix-500" /> live output — htool v{rel.tag.replace('v', '')}
           </div>
         </div>
       </div>
@@ -149,46 +228,74 @@ function Hero() {
   )
 }
 
-// ─── Features ───
+// ─── Marquee ───────────────────────────────────────────────
+
+function Marquee() {
+  const items = ['PORT SCANNING', 'SQL INJECTION', 'XSS DETECTION', 'DIR BRUTEFORCE', 'SUBDOMAIN ENUM', 'SSL ANALYSIS', 'SECURITY HEADERS', 'WAF DETECTION', 'TECH FINGERPRINT', 'SUBDOMAIN TAKEOVER', 'DNS AXFR CHECK', 'CVE MATCHING', 'REVERSE SHELLS', 'WEB SHELLS', 'HTML REPORTS', 'JSON EXPORT']
+  return (
+    <div className="marquee border-y border-white/5 py-4 bg-cyber-row/40">
+      <div className="marquee-track">
+        {[...items, ...items].map((t, i) => (
+          <span key={i} className="text-xs font-mono tracking-[0.2em] text-cyber-faint whitespace-nowrap flex items-center gap-3">
+            <span className="text-matrix-500/70">◆</span> {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Features (bento) ──────────────────────────────────────
+
 function Features() {
-  const features = [
-    { icon: IconScanner, title: 'Vulnerability Scanner', desc: 'Port scanning, SQLi, XSS, directory brute-forcing, subdomain enumeration, SSL/TLS analysis, security headers audit, and offline CVE matching with 100+ technology fingerprint signatures.' },
-    { icon: IconStress, title: 'Stress Testing', desc: 'HTTP flood, Slowloris, UDP flood, SYN flood simulation, advanced HTTP with random methods. Full authorised testing suite.' },
-    { icon: IconCredential, title: 'Credential Stuffing', desc: 'Mass login testing with wordlists, proxy rotation, rate limiting, and detailed result logging with success detection.' },
-    { icon: IconSpam, title: 'Spam & Flood', desc: 'Database flooding, email bomber, SMS bomber, comment spam, and registration spam with real HTTP request support.' },
-    { icon: IconPayload, title: 'Payload Generator', desc: 'Reverse shells for Linux/Windows/Python/PHP/Node.js/Ruby/Perl, bind shells, PHP web shells, download & execute payloads.' },
-    { icon: IconReport, title: 'Report Generation', desc: 'Beautiful HTML and JSON reports with full vulnerability details, technology stack analysis, and export to file.' },
-    { icon: IconCve, title: 'CVE Database', desc: 'Built-in offline CVE database with 50+ entries. Search by product, version, keyword, or CVSS score.' },
-    { icon: IconHtmlViewer, title: 'HTML Viewer', desc: 'Built-in HTML report viewer with preview, save, and open in browser functionality.' },
-    { icon: IconWaf, title: 'WAF Detection', desc: 'Active Web Application Firewall detection. Identifies Cloudflare, Sucuri, ModSecurity, AWS WAF, Imperva, and more.' },
+  const big = {
+    icon: IconScanner, title: 'Vulnerability Scanner',
+    desc: 'One command, a full assessment: port scanning, SQLi & XSS detection, directory brute-forcing, subdomain enumeration, SSL/TLS analysis, security-header audits, WAF detection and offline CVE matching — all multi-threaded with rate limiting and proxy support.',
+    chips: ['20+ quick ports / 1-1024 full', '11 SQLi payloads', '12 XSS payloads', 'AXFR + takeover checks'],
+  }
+  const rest = [
+    { icon: IconStress, title: 'Stress Testing', desc: 'HTTP flood, Slowloris, UDP & SYN simulation with per-module tuning.' },
+    { icon: IconCredential, title: 'Credential Stuffing', desc: 'Mass login audits with wordlists, proxy rotation & success heuristics.' },
+    { icon: IconSpam, title: 'Spam & Flood', desc: 'DB flood, comment & registration spam — rate-limit testing suite.' },
+    { icon: IconPayload, title: 'Payload Generator', desc: 'Reverse & bind shells, PHP web shells, download-exec across 7 platforms.' },
+    { icon: IconCve, title: 'Offline CVE Database', desc: '50+ critical CVEs bundled — zero internet required to match.' },
+    { icon: IconHtmlViewer, title: 'In-App Report Viewer', desc: 'NEW — open scan JSON and read the full rendered report inside the GUI. Export pixel-perfect HTML or raw JSON.' },
+    { icon: IconWaf, title: 'WAF Detection', desc: 'Identifies Cloudflare, Sucuri, ModSecurity, AWS WAF, Imperva, F5 & more.' },
   ]
 
   return (
-    <section id="features" className="py-16 md:py-24 relative">
+    <section id="features" className="py-20 md:py-28 relative">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-16">
-          <span className="text-xs font-mono text-cyber-cyan bg-cyber-cyan/10 px-3 py-1 rounded-full border border-cyber-cyan/30">
-            ● FEATURES
-          </span>
-          <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-cyber-bright mt-4 mb-4">
-            Everything You Need
-          </h2>
-          <p className="text-cyber-dim text-base sm:text-lg max-w-2xl mx-auto px-2 sm:px-0">
-            htool by <strong className="text-matrix-500">Resolute Femi</strong> provides
-            professional-grade <strong className="text-cyber-cyan">tools for checking vulnerability</strong>
-            {' '}and securing your infrastructure.
-          </p>
+        <div className="reveal text-center mb-14">
+          <span className="text-xs font-mono text-cyber-cyan bg-cyber-cyan/10 px-3.5 py-1.5 rounded-full border border-cyber-cyan/25">● CAPABILITIES</span>
+          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-5 mb-4">One binary. <span className="text-gradient">Every angle.</span></h2>
+          <p className="text-cyber-dim max-w-2xl mx-auto">Each module runs async on Tokio with global rate limiting — fast enough for full scans, gentle enough to stay under the radar.</p>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((f, i) => (
-            <div key={i} className="bg-cyber-card rounded-xl p-4 sm:p-6 border border-matrix-500/20 hover:border-matrix-500/40 transition-all group">
-              <div className="relative z-10">
-                <div className="mb-4 w-10 h-10"><f.icon className="w-full h-full" /></div>
-                <h3 className="text-cyber-bright font-bold text-lg mb-2 group-hover:text-matrix-500 transition-colors">
-                  {f.title}
-                </h3>
-                <p className="text-cyber-dim text-sm leading-relaxed">{f.desc}</p>
-              </div>
+
+        <div className="grid md:grid-cols-3 gap-5">
+          <div className="reveal md:col-span-2 card-glow bg-cyber-card rounded-2xl p-7 border border-white/8">
+            <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
+              <div className="w-12 h-12"><big.icon className="w-full h-full" /></div>
+              <span className="text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/30 px-2.5 py-1 rounded-full">CORE MODULE</span>
+            </div>
+            <h3 className="text-white font-bold text-xl mb-2.5">{big.title}</h3>
+            <p className="text-cyber-dim text-sm leading-relaxed mb-5">{big.desc}</p>
+            <div className="flex flex-wrap gap-2">
+              {big.chips.map(c => (
+                <span key={c} className="text-[11px] font-mono text-cyber-cyan bg-cyber-cyan/8 border border-cyber-cyan/20 px-3 py-1 rounded-full">{c}</span>
+              ))}
+            </div>
+          </div>
+          <div className="reveal card-glow bg-cyber-card rounded-2xl p-6 border border-white/8">
+            <div className="w-12 h-12 mb-4"><IconReport className="w-full h-full" /></div>
+            <h3 className="text-white font-bold text-lg mb-2.5">Beautiful Reports</h3>
+            <p className="text-cyber-dim text-sm leading-relaxed">Severity-badged, stat-gridded HTML reports with neon chips — generated locally, no telemetry, ever.</p>
+          </div>
+          {rest.map((f, i) => (
+            <div key={i} className="reveal card-glow bg-cyber-card rounded-2xl p-6 border border-white/8">
+              <div className="w-10 h-10 mb-4"><f.icon className="w-full h-full" /></div>
+              <h3 className="text-white font-bold text-[15px] mb-2">{f.title}</h3>
+              <p className="text-cyber-dim text-[13px] leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -197,130 +304,147 @@ function Features() {
   )
 }
 
-// ─── Tech Stack ───
-function TechStack() {
-  const techs = ['Rust', 'Tokio', 'egui', 'reqwest', 'Hickory DNS', 'Clap', 'mimalloc', 'Async/Await']
+// ─── App UI showcase (CSS mock of the new GUI) ─────────────
+
+function AppShowcase() {
+  const sidebar = [['◈', 'Dashboard', true], ['◉', 'Scanner', false], ['⚡', 'Stress Test', false], ['@', 'Cred Stuffing', false], ['✉', 'Spam & Flood', false], ['>_', 'Payload Gen', false], ['▤', 'Report Viewer', false], ['☰', 'CVE Database', false]]
+  const stats = [['4', 'OPEN PORTS', 'text-matrix-500'], ['2', 'SQL INJECTION', 'text-red-400'], ['1', 'XSS', 'text-red-400'], ['0', 'TAKEOVERS', 'text-red-400'], ['3', 'TECHNOLOGIES', 'text-cyber-purple']]
+
   return (
-    <section className="py-12 md:py-16 relative">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
-        <span className="text-xs font-mono text-cyber-orange bg-cyber-orange/10 px-3 py-1 rounded-full border border-cyber-orange/30">
-          ● BUILT WITH RUST
-        </span>
-        <h2 className="text-xl sm:text-2xl md:text-4xl font-bold text-cyber-bright mt-4 mb-6 sm:mb-8">
-          Powered By Modern Technology
-        </h2>
-        <div className="flex flex-wrap justify-center gap-4">
-          {techs.map((t, i) => (
-            <span key={i} className="text-sm font-mono text-matrix-500/70 bg-matrix-500/5 px-4 py-2 rounded-lg border border-matrix-500/20">
-              {t}
-            </span>
-          ))}
+    <section id="app" className="py-20 md:py-28 relative bg-cyber-row/30 border-y border-white/5">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="reveal text-center mb-14">
+          <span className="text-xs font-mono text-matrix-500 bg-matrix-500/10 px-3.5 py-1.5 rounded-full border border-matrix-500/25">● THE NEW APP</span>
+          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-5 mb-4">A dashboard that <span className="text-gradient">feels premium.</span></h2>
+          <p className="text-cyber-dim max-w-2xl mx-auto">v3.1 ships a fully redesigned GUI — deep-navy theme, neon-emerald accents, stat cards, severity badges and a built-in report viewer that renders your scan results right inside the app.</p>
         </div>
-        <p className="text-cyber-dim mt-6 sm:mt-8 max-w-2xl mx-auto px-2 sm:px-0 text-sm sm:text-base">
-          Written entirely in <strong className="text-cyber-bright">Rust</strong> for maximum performance, memory safety, and zero-cost abstractions.
-          Async I/O with Tokio for concurrent scanning, egui for the desktop GUI.
-        </p>
+
+        <div className="reveal max-w-4xl mx-auto">
+          <div className="app-mock">
+            {/* window bar */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/5 bg-cyber-sidebar">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f87171]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
+              <span className="text-[11px] font-mono text-cyber-faint ml-3">htool — Ultimate Hacker Toolkit</span>
+              <span className="ml-auto text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/25 px-2 py-0.5 rounded-full">MODULE · SCANNER</span>
+            </div>
+            <div className="grid grid-cols-[120px_1fr] sm:grid-cols-[170px_1fr] min-h-[380px]">
+              {/* sidebar */}
+              <div className="bg-cyber-sidebar border-r border-white/5 p-2.5 hidden sm:block">
+                <div className="text-[9px] font-mono text-cyber-faint tracking-widest px-2 mb-2">MODULES</div>
+                {sidebar.map(([icon, label, active]) => (
+                  <div key={label} className={`flex items-center gap-2 px-2.5 py-[7px] rounded-lg mb-0.5 text-[11px] font-mono ${active ? 'bg-matrix-500/12 text-cyber-bright border-l-2 border-matrix-500' : 'text-cyber-faint'}`}>
+                    <span className={active ? 'text-matrix-500' : ''}>{icon}</span> {label}
+                  </div>
+                ))}
+                <div className="absolute mt-6 text-[9px] font-mono text-cyber-faint/60 px-2">authorised use only</div>
+              </div>
+              {/* main */}
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[10px] font-mono text-red-300 bg-red-400/10 border border-red-400/30 px-2.5 py-1 rounded-full font-bold">HIGH SEVERITY</span>
+                  <span className="text-[10px] font-mono text-cyber-faint">scan · target.com</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {stats.map(([n, l, c]) => (
+                    <div key={l} className="bg-cyber-card/90 border border-white/5 rounded-lg py-2.5 text-center">
+                      <div className={`text-lg font-bold font-mono ${c}`}>{n}</div>
+                      <div className="text-[7.5px] tracking-wider text-cyber-faint">{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-cyber-card/90 border border-white/5 rounded-xl p-3.5 mb-3">
+                  <div className="text-[11px] font-semibold text-cyber-bright mb-2.5">🔓 Open Ports</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[['22 · SSH', 'text-cyber-cyan bg-cyber-cyan/10'], ['80 · HTTP', 'text-cyber-cyan bg-cyber-cyan/10'], ['443 · HTTPS', 'text-cyber-cyan bg-cyber-cyan/10'], ['3306 · MySQL', 'text-cyber-cyan bg-cyber-cyan/10']].map(([t, c]) => (
+                      <span key={t} className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${c}`}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-cyber-card/90 border border-red-400/15 border-l-2 border-l-red-400/60 rounded-xl p-3.5 mb-3">
+                  <div className="text-[11px] font-semibold text-cyber-bright mb-2">🐍 SQL Injection <span className="text-cyber-faint font-normal">(2)</span></div>
+                  {['⚠  target.com/item?id=1', '⚠  target.com/product?cat=2'].map(u => (
+                    <div key={u} className="text-[10px] font-mono text-red-300 bg-cyber-deep/90 rounded-md px-2.5 py-1.5 mb-1.5">{u}</div>
+                  ))}
+                </div>
+                <div className="bg-cyber-card/90 border border-white/5 rounded-xl p-3.5">
+                  <div className="text-[11px] font-semibold text-cyber-bright mb-2">🛠 Detected Technologies <span className="text-cyber-faint font-normal">(3)</span></div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[['Nginx', 'text-cyber-cyan bg-cyber-cyan/10'], ['PHP 8.1', 'text-cyber-cyan bg-cyber-cyan/10'], ['[WAF] Cloudflare WAF', 'text-cyber-orange bg-cyber-orange/10']].map(([t, c]) => (
+                      <span key={t} className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${c}`}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-center text-cyber-faint text-xs mt-4 font-mono">▲ actual v3.1 GUI — dark navy theme, stat grid, severity badges, rendered report preview</p>
+        </div>
       </div>
     </section>
   )
 }
 
-// ─── Download ───
+// ─── Download ──────────────────────────────────────────────
+
 function Download() {
   const os = useOs()
-  const downloads = [
-    { os: 'windows', label: 'Windows', icon: OsWindows, desc: 'htool-gui.exe + htool.exe', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-pc-windows-msvc.zip' },
-    { os: 'linux', label: 'Linux', icon: OsLinux, desc: 'htool-gui + htool (CLI)', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-unknown-linux-gnu.tar.gz' },
-    { os: 'macos', label: 'macOS', icon: OsMacos, desc: 'htool-gui + htool (CLI)', coming: false, url: 'https://github.com/Resolutefemi/hacker_toolkit/releases/latest/download/htool-x86_64-apple-darwin.tar.gz' },
+  const rel = useLatestRelease()
+  const cards = [
+    { os: 'windows', label: 'Windows', icon: OsWindows, file: 'htool-x86_64-pc-windows-msvc.zip', ext: '.zip · exe', note: 'htool-gui.exe + htool.exe · Win 10/11 x64', primary: true },
+    { os: 'linux', label: 'Linux', icon: OsLinux, file: 'htool-x86_64-unknown-linux-gnu.tar.gz', ext: '.tar.gz', note: 'htool-gui + htool (CLI) · x86_64' },
+    { os: 'macos', label: 'macOS', icon: OsMacos, file: 'htool-x86_64-apple-darwin.tar.gz', ext: '.tar.gz', note: 'htool-gui + htool (CLI) · Intel' },
   ]
 
   return (
-    <section id="download" className="py-16 md:py-24 relative">
-      <div className="max-w-6xl mx-auto px-4 text-center relative z-10">
-        <span className="text-xs font-mono text-matrix-500 bg-matrix-500/10 px-3 py-1 rounded-full border border-matrix-500/30">
-          ● DOWNLOAD
-        </span>
-        <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-cyber-bright mt-4 mb-4">
-          Get htool
-        </h2>
-        <p className="text-cyber-dim text-base sm:text-lg max-w-2xl mx-auto mb-8 sm:mb-12 px-2 sm:px-0">
-          Download the latest release. Available for all major platforms.
-          Built by <span className="text-matrix-500 font-semibold">Resolute Femi</span>.
-        </p>
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          {downloads.map((d, i) => {
-            const isActive = os === d.os && !d.coming
+    <section id="download" className="py-20 md:py-28 relative overflow-hidden">
+      <div className="absolute inset-0 bg-grid opacity-60" />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center relative z-10">
+        <div className="reveal">
+          <span className="text-xs font-mono text-matrix-500 bg-matrix-500/10 px-3.5 py-1.5 rounded-full border border-matrix-500/25">● DOWNLOAD</span>
+          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-5 mb-4">Get <span className="text-gradient">htool</span></h2>
+          <p className="text-cyber-dim max-w-xl mx-auto mb-10">Free & open source. The Windows build ships both the modern GUI and the CLI — unzip and run, no installer needed.</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-5 max-w-4xl mx-auto mb-10">
+          {cards.map((d, i) => {
+            const isActive = os === d.os
             return (
-              <div key={i} className={`bg-cyber-card rounded-xl p-6 sm:p-8 border transition-all ${isActive ? 'border-matrix-500 shadow-lg shadow-matrix-500/20' : 'border-cyber-dim/20 hover:border-matrix-500/40'}`}>
-                <div className="mb-4 w-14 h-14 mx-auto"><d.icon className="w-full h-full" /></div>
-                <h3 className="text-xl font-bold text-cyber-bright mb-2">{d.label}</h3>
-                <p className="text-cyber-dim text-sm mb-6">{d.desc}</p>
-                {d.coming ? (
-                  <span className="inline-block bg-cyber-dim/20 text-cyber-dim px-6 py-3 rounded-lg font-semibold cursor-not-allowed">
-                    Coming Soon
-                  </span>
-                ) : (
-                  <a href={d.url}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="inline-block bg-matrix-500 text-black px-5 sm:px-6 py-3 rounded-lg font-bold text-sm sm:text-base hover:bg-matrix-400 transition-all btn-flash shadow-lg shadow-matrix-500/25 w-full sm:w-auto">
-                    ⬇ {d.label}
-                  </a>
-                )}
+              <div key={i} className={`reveal card-glow bg-cyber-card rounded-2xl p-7 border transition-all ${isActive ? 'border-matrix-500/60 shadow-glow-accent' : 'border-white/8'}`}>
+                {isActive && <span className="float-right text-[9px] font-mono text-black bg-matrix-500 px-2 py-0.5 rounded-full font-bold">YOUR OS</span>}
+                <div className="w-14 h-14 mx-auto mb-4"><d.icon className="w-full h-full" /></div>
+                <h3 className="text-lg font-bold text-white mb-1">{d.label}</h3>
+                <p className="text-cyber-faint text-xs font-mono mb-5 break-all">{d.file}</p>
+                <p className="text-cyber-dim text-[12.5px] mb-5">{d.note}</p>
+                <a href={ASSETS[d.os]} className={`block w-full py-3 rounded-xl font-bold text-sm transition-all btn-flash ${isActive ? 'bg-matrix-500 text-black hover:bg-matrix-400 hover:shadow-glow-accent' : 'bg-white/8 text-cyber-bright hover:bg-white/12'}`}>
+                  ⬇ Download {d.ext}
+                </a>
               </div>
             )
           })}
         </div>
 
-        {/* Latest Release Info */}
-        <div className="mt-8 sm:mt-12 max-w-lg mx-auto bg-cyber-card rounded-xl p-5 sm:p-6 border border-matrix-500/20">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="w-2 h-2 rounded-full bg-matrix-500" />
-            <h4 className="text-cyber-bright font-bold font-mono text-sm">// LATEST RELEASE</h4>
-          </div>
-          <div className="flex justify-between text-sm text-cyber-dim mb-2 pb-2 border-b border-cyber-dim/10">
-            <span>Version</span>
-            <span className="text-matrix-500 font-mono font-semibold">v3.0.0</span>
-          </div>
-          <div className="flex justify-between text-sm text-cyber-dim mb-2 pb-2 border-b border-cyber-dim/10">
-            <span>Build</span>
-            <span className="text-cyber-dim font-mono">Release (optimized)</span>
-          </div>
-          <div className="flex justify-between text-sm text-cyber-dim mb-2 pb-2 border-b border-cyber-dim/10">
-            <span>Windows</span>
-            <span className="text-matrix-500 font-mono">htool-x86_64.msi</span>
-          </div>
-          <div className="flex justify-between text-sm text-cyber-dim mb-2 pb-2 border-b border-cyber-dim/10">
-            <span>Linux</span>
-            <span className="text-cyber-cyan font-mono">htool-x86_64.AppImage</span>
-          </div>
-          <div className="flex justify-between text-sm text-cyber-dim">
-            <span>macOS</span>
-            <span className="text-cyber-cyan font-mono">htool-x86_64.dmg</span>
-          </div>
+        <div className="reveal inline-flex items-center gap-3 text-sm text-cyber-dim bg-cyber-card/70 border border-white/8 rounded-full px-5 py-2.5 mb-12">
+          <span className="w-2 h-2 rounded-full bg-matrix-500 animate-pulse" />
+          latest release <span className="font-mono text-matrix-500 font-semibold">{rel.tag}</span>
+          <span className="text-cyber-faint">·</span>
+          <a href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" className="text-cyber-cyan hover:text-matrix-500 transition-colors">view on GitHub →</a>
         </div>
 
-        {/* Install via Cargo */}
-        <div className="mt-8 sm:mt-12 terminal-window max-w-lg mx-2 sm:mx-auto text-left">
+        <div className="reveal terminal-window max-w-xl mx-auto text-left">
           <div className="terminal-header">
-            <div className="terminal-dot" style={{ background: '#ff0055' }} />
-            <div className="terminal-dot" style={{ background: '#ffa500' }} />
-            <div className="terminal-dot" style={{ background: '#00ff41' }} />
-            <span className="text-cyber-dim text-xs ml-2 font-mono">install</span>
+            <div className="terminal-dot" style={{ background: '#f87171' }} />
+            <div className="terminal-dot" style={{ background: '#fbbf24' }} />
+            <div className="terminal-dot" style={{ background: '#34d399' }} />
+            <span className="text-cyber-faint text-xs ml-2 font-mono">install</span>
           </div>
-          <div className="terminal-content">
-            <span className="text-cyber-dim"># Install via Cargo (Rust package manager)</span>
-            <br />
-            <span className="text-matrix-500">$</span>{' '}
-            <span className="text-cyber-bright">cargo install htool</span>
-            <br /><br />
-            <span className="text-cyber-dim"># Or build from source</span>
-            <br />
-            <span className="text-matrix-500">$</span>{' '}
-            <span className="text-cyber-bright">git clone https://github.com/Resolutefemi/htool.git</span>
-            <br />
-            <span className="text-matrix-500">$</span>{' '}
-            <span className="text-cyber-bright">cd htool && cargo build --release</span>
+          <div className="terminal-content p-4 sm:p-5 text-[12.5px] sm:text-[13px]">
+            <div className="text-cyber-faint"># Rust users — install straight from crates.io</div>
+            <div><span className="text-matrix-500">$</span> <span className="text-white font-bold">cargo install htool</span></div>
+            <div className="mt-3 text-cyber-faint"># or build the GUI from source</div>
+            <div><span className="text-matrix-500">$</span> <span className="text-white">git clone https://github.com/Resolutefemi/hacker_toolkit.git</span></div>
+            <div><span className="text-matrix-500">$</span> <span className="text-white">cd hacker_toolkit && cargo build --release</span></div>
           </div>
         </div>
       </div>
@@ -328,32 +452,58 @@ function Download() {
   )
 }
 
-// ─── Author ───
+// ─── FAQ ───────────────────────────────────────────────────
+
+function FAQ() {
+  const faqs = [
+    ['Is htool free?', 'Yes — htool is fully open source under the MIT license. The Windows zip includes both the desktop GUI (htool-gui.exe) and the CLI (htool.exe). No accounts, no telemetry, no paywalls.'],
+    ['What changed in v3.1?', 'The entire GUI was redesigned with a modern dark-navy theme, neon accents, stat cards and severity badges. A new Report Viewer renders scan reports and JSON inside the app, the CLI gained colored output and rich summaries, and several bugs were fixed — including the payload command flags and WAF detection results being dropped.'],
+    ['Which Windows build do I download?', 'Download htool-x86_64-pc-windows-msvc.zip from the latest release. Right-click → Extract all, then run htool-gui.exe for the dashboard or htool.exe from a terminal for the CLI. SmartScreen may warn on first run — click "More info" → "Run anyway".'],
+    ['Is this legal to use?', 'Only against systems you own or have explicit written permission to test. htool is built for authorised security assessments, CTF practice and education. Unauthorised use against third-party systems is illegal.'],
+    ['Does the scanner need an internet connection?', 'The scanner needs network access to your target, but the CVE database is bundled offline inside the binary — CVE matching, payload generation and reporting all work fully offline.'],
+  ]
+  return (
+    <section id="faq" className="py-20 md:py-28 bg-cyber-row/30 border-y border-white/5">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        <div className="reveal text-center mb-12">
+          <span className="text-xs font-mono text-cyber-purple bg-cyber-purple/10 px-3.5 py-1.5 rounded-full border border-cyber-purple/25">● FAQ</span>
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mt-5">Questions, answered.</h2>
+        </div>
+        <div className="space-y-3">
+          {faqs.map(([q, a], i) => (
+            <details key={i} className="reveal group bg-cyber-card border border-white/8 rounded-xl overflow-hidden card-glow">
+              <summary className="flex items-center justify-between cursor-pointer list-none px-5 py-4 text-white font-semibold text-[15px]">
+                {q}
+                <span className="faq-chevron text-matrix-500 text-lg group-open:rotate-180 transition-transform">⌄</span>
+              </summary>
+              <p className="px-5 pb-5 text-cyber-dim text-sm leading-relaxed">{a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Author ────────────────────────────────────────────────
+
 function Author() {
   return (
-    <section id="author" className="py-16 md:py-24 relative">
+    <section id="author" className="py-20 md:py-28">
       <div className="max-w-4xl mx-auto px-4 text-center">
-        <span className="text-xs font-mono text-cyber-pink bg-cyber-pink/10 px-3 py-1 rounded-full border border-cyber-pink/30">
-          ● CREATOR
-        </span>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-cyber-bright mt-4 mb-6 sm:mb-8">
-          Built by <span className="text-matrix-500">Resolute Femi</span>
-        </h2>
-        <div className="bg-cyber-card rounded-xl p-6 sm:p-8 md:p-12 border border-cyber-dim/20 mx-2 sm:mx-0">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-matrix-500 to-cyber-cyan flex items-center justify-center p-4">
+        <div className="reveal bg-cyber-card rounded-2xl p-8 sm:p-12 border border-white/8 card-glow">
+          <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-matrix-500 to-cyber-cyan flex items-center justify-center p-5 shadow-glow-accent">
             <HIcon className="w-full h-full" />
           </div>
-          <h3 className="text-2xl font-bold text-cyber-bright mb-2">Resolute Femi</h3>
-          <p className="text-matrix-500 font-mono mb-4">@Resolutefemi</p>
-          <p className="text-cyber-dim text-base sm:text-lg max-w-2xl mx-auto leading-relaxed px-2 sm:px-0">
-            htool is crafted by <strong className="text-cyber-bright">Resolute Femi</strong>, a security researcher and Rust developer.
-            This project represents a comprehensive set of <strong className="text-cyber-cyan">tools for checking vulnerability</strong>{' '}
-            and testing security posture, built with performance and reliability at its core.
+          <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">Built by <span className="text-gradient">Resolute Femi</span></h2>
+          <p className="text-matrix-500 font-mono text-sm mb-5">@Resolutefemi</p>
+          <p className="text-cyber-dim max-w-xl mx-auto leading-relaxed text-[15px]">
+            Security researcher and Rust developer. htool is a comprehensive, all-in-one toolkit for
+            checking vulnerabilities and testing security posture — engineered for performance, polished for people.
           </p>
           <div className="flex justify-center gap-4 mt-8">
-            <a href="https://github.com/Resolutefemi" target="_blank" rel="noopener noreferrer" className="text-cyber-dim hover:text-matrix-500 transition-colors">
-              GitHub →
-            </a>
+            <a href="https://github.com/Resolutefemi" target="_blank" rel="noopener noreferrer" className="border border-white/15 hover:border-matrix-500/60 hover:text-matrix-500 text-cyber-dim transition-all px-5 py-2.5 rounded-xl text-sm font-semibold">GitHub →</a>
+            <a href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" className="border border-white/15 hover:border-matrix-500/60 hover:text-matrix-500 text-cyber-dim transition-all px-5 py-2.5 rounded-xl text-sm font-semibold">Releases →</a>
           </div>
         </div>
       </div>
@@ -361,51 +511,55 @@ function Author() {
   )
 }
 
-// ─── Footer ───
+// ─── Footer ────────────────────────────────────────────────
+
 function Footer() {
   return (
-    <footer className="border-t border-matrix-500/20 py-12">
+    <footer className="border-t border-white/5 py-12 bg-cyber-sidebar/60">
       <div className="max-w-6xl mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <span className="text-matrix-500 font-bold text-xl font-mono">htool</span>
-            <span className="text-cyber-dim text-sm">by Resolute Femi</span>
+            <div className="w-8 h-8 rounded-lg bg-matrix-500/15 border border-matrix-500/40 flex items-center justify-center">
+              <HIcon className="w-5 h-5" />
+            </div>
+            <span className="text-white font-bold text-lg font-mono">htool</span>
+            <span className="text-cyber-faint text-sm">by Resolute Femi</span>
           </div>
-          <div className="text-cyber-dim text-sm text-center md:text-right">
-            <p>Professional cybersecurity testing framework</p>
-            <p className="mt-1">
-              Keywords: <span className="text-matrix-500">htool</span>,{' '}
-              <span className="text-matrix-500">Resolute Femi</span>,{' '}
-              <span className="text-matrix-500">Resolutefemi</span>,{' '}
-              <span className="text-cyber-cyan">Tools for Checking Vulnerability</span>
-            </p>
+          <div className="flex gap-6 text-sm text-cyber-dim">
+            <a href="#features" className="hover:text-matrix-500 transition-colors">Features</a>
+            <a href="#download" className="hover:text-matrix-500 transition-colors">Download</a>
+            <a href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" className="hover:text-matrix-500 transition-colors">Releases</a>
+            <a href="https://github.com/Resolutefemi/hacker_toolkit" target="_blank" rel="noopener noreferrer" className="hover:text-matrix-500 transition-colors">Source</a>
           </div>
         </div>
-        <div className="mt-8 pt-8 border-t border-cyber-dim/10 text-center text-cyber-dim text-xs">
-          <p>⚠️ For authorised security testing and educational purposes only.</p>
-          <p className="mt-1">Unauthorised use against systems you do not own is illegal.</p>
-          <p className="mt-4">&copy; {new Date().getFullYear()} Resolute Femi. All rights reserved.</p>
+        <div className="mt-8 pt-8 border-t border-white/5 text-center text-cyber-faint text-xs leading-relaxed">
+          <p>⚠️ For authorised security testing and educational purposes only. Unauthorised use against systems you do not own is illegal.</p>
+          <p className="mt-2">© {new Date().getFullYear()} Resolute Femi · htool v3.1.0 · built with Rust, Tokio & egui</p>
         </div>
       </div>
     </footer>
   )
 }
 
-// ─── Main Page ───
+// ─── Page ──────────────────────────────────────────────────
+
 export default function Home() {
+  useReveal()
   return (
     <>
       <Head>
-        <title>htool — Cybersecurity Toolkit by Resolute Femi | Download Free</title>
-        <meta name="description" content="Download htool by Ariyo Oluwafemi Stephen (Resolute Femi), the ultimate all-in-one cybersecurity testing toolkit. Advanced tools for checking vulnerability, network scanning, stress testing, and more. Built with Rust." />
+        <title>htool — Modern Cybersecurity Toolkit by Resolute Femi | Free Download</title>
+        <meta name="description" content="Download htool v3.1 by Resolute Femi — the redesigned all-in-one cybersecurity toolkit. Vulnerability scanning, stress testing, payload generation and a beautiful new GUI with in-app report viewing. Built with Rust, free & open source." />
       </Head>
 
-      <main className="bg-cyber-dark min-h-screen">
+      <main className="bg-cyber-dark min-h-screen overflow-x-hidden">
         <Header />
         <Hero />
+        <Marquee />
         <Features />
-        <TechStack />
+        <AppShowcase />
         <Download />
+        <FAQ />
         <Author />
         <Footer />
       </main>
