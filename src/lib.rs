@@ -9,12 +9,16 @@ pub mod payload;
 pub mod report;
 pub mod utils;
 pub mod cve;
+pub mod pdf;
+pub mod scheduler;
 
 // Re-export commonly used types
 pub use scanner::{ScanResult, ScannerConfig, ScanType, run_full_scan};
-pub use utils::{create_rate_limiter, load_wordlist, build_http_client, SharedRateLimiter, load_proxy_list};
+pub use utils::{create_rate_limiter, load_wordlist, build_http_client, SharedRateLimiter, load_proxy_list, htool_dir};
 pub use credential::{CredStuffConfig, LoginResult, credential_stuffing, save_successful_logins, load_wordlist_from_file};
 pub use payload::{Platform, generate_reverse_shell, generate_bind_shell, random_webshell_password, generate_php_webshell, generate_download_exec};
 pub use report::{save_html_report, save_json_report, generate_combined_report, generate_html_report, generate_json_report};
+pub use pdf::{generate_pdf_report, export_pdf_report};
+pub use scheduler::{ScheduleEntry, ScheduleKind, due_entries, load_entries, save_entries, entries_path, default_reports_dir, parse_daily_time, compute_next_ts, countdown};
 pub use spam::{flood_database, email_bomber, sms_bomber, comment_spam, registration_spam};
 pub use cve::{CveEntry, search_cves};

@@ -3,6 +3,7 @@
 //! Supports all modules: scan, stress, credential stuffing, spam, payload, report, CVE search.
 
 use clap::{Parser, Subcommand};
+use chrono::Local;
 use htool::*;
 use std::fs;
 use std::io::IsTerminal;
@@ -129,12 +130,15 @@ enum Commands {
         /// Timeout in seconds for each request
         #[arg(short, long, default_value = "8")]
         timeout: u64,
-        /// Output report file path (.html = HTML report, .json = JSON report)
+        /// Output report file path (.html = HTML report, .json = JSON report, .pdf = PDF report)
         #[arg(short, long)]
         output: Option<String>,
         /// Also save a JSON file next to the HTML report
         #[arg(long)]
         with_json: bool,
+        /// Also save a PDF report next to the HTML report
+        #[arg(long)]
+        with_pdf: bool,
         /// Open the generated report in your browser
         #[arg(long)]
         open: bool,
@@ -220,13 +224,16 @@ enum Commands {
         #[arg(short, long)]
         output: Option<String>,
     },
-    /// Generate an HTML report from a saved scan JSON file
+    /// Generate an HTML or PDF report from a saved scan JSON file
     Report {
         /// Path to JSON scan result file
         input: String,
-        /// Output HTML file path
+        /// Output file path (defaults to .html beside the input; use --pdf for PDF)
         #[arg(short, long)]
         output: Option<String>,
+        /// Generate a PDF report instead of HTML
+        #[arg(long)]
+        pdf: bool,
         /// Open the generated report in your browser
         #[arg(long)]
         open: bool,
@@ -238,6 +245,11 @@ enum Commands {
         /// Show only CVEs with CVSS >= this score
         #[arg(long)]
         min_cvss: Option<f32>,
+    },
+    /// Schedule scans to run automatically (interval or daily)
+    Schedule {
+        #[command(subcommand)]
+        cmd: ScheduleCommands,
     },
 }
 
@@ -342,9 +354,162 @@ enum SpamCommands {
     },
 }
 
+/// Schedule scans to run automatically (interval or daily) — stored in ~/.htool/schedules.json
+#[derive(Subcommand)]
+enum ScheduleCommands {
+    /// Add a scheduled scan
+    Add {
+        /// Target URL or IP to scan
+        target: String,
+        /// Friendly name for the schedule (defaults to "scan-<target>")
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Run every N seconds (e.g. --every 3600 = hourly). Use --daily instead for a fixed time.
+        #[arg(long, conflicts_with = "daily")]
+        every: Option<u64>,
+        /// Run every day at HH:MM (local time), e.g. --daily 03:30
+        #[arg(long)]
+        daily: Option<String>,
+        /// Scan mode: quick or full
+        #[arg(short, long, default_value = "quick")]
+        mode: String,
+        /// Rate limit (requests per second)
+        #[arg(short, long, default_value = "10")]
+        rate: u32,
+        /// Timeout in seconds per request
+        #[arg(short, long, default_value = "8")]
+        timeout: u64,
+        /// Proxy URL (optional)
+        #[arg(short, long)]
+        proxy: Option<String>,
+        /// Directory to write HTML/JSON/PDF reports into (default ~/.htool/reports)
+        #[arg(long)]
+        reports_dir: Option<String>,
+    },
+    /// List all scheduled scans
+    List {},
+    /// Remove a scheduled scan by id
+    Remove {
+        /// The schedule id (see: htool schedule list)
+        id: String,
+    },
+    /// Enable or disable a schedule
+    Toggle {
+        /// The schedule id
+        id: String,
+        /// New state (omit to flip current state)
+        #[arg(long)]
+        enable: Option<bool>,
+    },
+    /// Start the scheduler daemon — runs due scans automatically until stopped
+    Run {},
+}
+
 fn open_in_browser(path: &str) {
     println!("  {} Opening {} …", c_cyan("▸"), c_dim(path));
     let _ = open::that(path);
+}
+
+/// Build a ScannerConfig from schedule entry fields
+fn scanner_config_for(entry: &ScheduleEntry) -> ScannerConfig {
+    ScannerConfig {
+        scan_type: if entry.mode == "full" { ScanType::Full } else { ScanType::Quick },
+        rate_limit_rps: entry.rate,
+        proxy: if entry.proxy.is_empty() { None } else { Some(entry.proxy.clone()) },
+        wordlist: load_wordlist(None),
+        timeout_secs: entry.timeout,
+        user_agent: utils::random_user_agent(),
+    }
+}
+
+/// Execute one scheduled scan and write HTML+JSON+PDF reports into its reports_dir
+async fn run_scheduled_scan(entry: ScheduleEntry) -> String {
+    let config = scanner_config_for(&entry);
+    let result = run_full_scan(entry.target.clone(), config, None).await;
+    std::fs::create_dir_all(&entry.reports_dir).ok();
+    let stamp = Local::now().format("%Y%m%d_%H%M%S");
+    let base = format!("{}/{}_{}", entry.reports_dir.trim_end_matches('/'), entry.name.replace(['/', ' '], "_"), stamp);
+    let html = format!("{}.html", base);
+    let json = format!("{}.json", base);
+    let pdf = format!("{}.pdf", base);
+    let mut issues = 0;
+    if save_html_report(&result, &html).is_err() { issues += 1; }
+    if save_json_report(&result, &json).is_err() { issues += 1; }
+    if export_pdf_report(&result, &pdf).is_err() { issues += 1; }
+    if issues > 0 {
+        format!("ERROR: failed to write {} report file(s)", issues)
+    } else {
+        format!("OK — {} findings · severity {} · reports: {}.html/.json/.pdf", result.total_findings(), result.severity(), base)
+    }
+}
+
+/// The interactive scheduler daemon loop
+async fn scheduler_daemon() {
+    let mut entries = load_entries();
+    if entries.is_empty() {
+        println!("  {} No schedules found. Add one first:", c_yellow("⚠"));
+        println!("    {} htool schedule add https://example.com --every 3600", c_dim("▸"));
+        println!("    {} htool schedule add https://example.com --daily 09:00", c_dim("▸"));
+        return;
+    }
+    println!("  {} Scheduler daemon running — {} schedule(s) loaded.", c_accent("▶"), c_bold(&entries.len().to_string()));
+    println!("  {} Press Ctrl+C to stop. Reports are written to each schedule's reports dir.", c_dim("·"));
+    for e in &entries {
+        let next = e.next_run_ts.map(countdown).unwrap_or_else(|| "—".into());
+        println!("    {} {} → {} [{}]", c_cyan(&e.id), c_bold(&e.name), c_dim(&e.target), next);
+    }
+    println!();
+    loop {
+        let now = Local::now().timestamp();
+        let due = due_entries(&entries, now);
+        for mut entry in due {
+            println!("  {} {} firing scheduled scan {} → {}",
+                c_accent("⏱"), c_dim(&Local::now().format("%H:%M:%S").to_string()), c_bold(&entry.name), c_cyan(&entry.target));
+            entry.last_run_ts = Some(now);
+            entry.reschedule(Local::now());
+            let handle = tokio::spawn(run_scheduled_scan(entry.clone()));
+            let status = match handle.await {
+                Ok(s) => s,
+                Err(e) => format!("ERROR: task join failure: {}", e),
+            };
+            entry.runs += 1;
+            entry.last_status = Some(status.clone());
+            let colored = if status.starts_with("OK") { c_accent("✓") } else { c_red("✗") };
+            println!("    {} {}", colored, c_dim(&status));
+            if let Some(slot) = entries.iter_mut().find(|e| e.id == entry.id) {
+                *slot = entry;
+            }
+            let _ = save_entries(&entries);
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+    }
+}
+
+/// Print the schedule list table
+fn print_schedule_list(entries: &[ScheduleEntry]) {
+    if entries.is_empty() {
+        println!("  {} No scheduled scans yet. Try:", c_yellow("⚠"));
+        println!("    {} htool schedule add https://example.com --every 1800", c_dim("▸"));
+        println!("    {} htool schedule add https://example.com --daily 09:00", c_dim("▸"));
+        return;
+    }
+    println!("\n  {} {} scheduled scan(s):\n", c_accent("⏱"), c_bold(&entries.len().to_string()));
+    for e in entries {
+        let state = if e.enabled { c_accent("enabled ") } else { c_dim("disabled") };
+        let next = e.next_run_ts.map(countdown).unwrap_or_else(|| "—".into());
+        println!("  {} {}  {}  {}", c_accent(&e.id), state, c_bold(&e.name), c_dim(&e.kind.describe()));
+        println!("    target: {}  ·  mode: {}  ·  next run: {}", c_cyan(&e.target), e.mode.as_str(), c_cyan(&next));
+        if let Some(ts) = e.last_run_ts {
+            let when = chrono::DateTime::from_timestamp(ts, 0)
+                .map(|d| d.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string())
+                .unwrap_or_default();
+            println!("    last run: {} ({} runs)  ·  {}", c_dim(&when), c_dim(&e.runs.to_string()),
+                e.last_status.as_deref().map(|s| if s.starts_with("OK") { c_accent(s) } else { c_red(s) }).unwrap_or_else(|| c_dim("—")));
+        } else {
+            println!("    last run: {}  ·  never executed yet", c_dim("—"));
+        }
+        println!();
+    }
 }
 
 #[tokio::main]
@@ -352,7 +517,7 @@ async fn main() {
     let cli = Cli::parse();
     print_banner();
     match cli.command {
-        Commands::Scan { target, mode, rate, proxy, wordlist, timeout, output, with_json, open, json } => {
+        Commands::Scan { target, mode, rate, proxy, wordlist, timeout, output, with_json, with_pdf, open, json } => {
             let scan_type = if mode == "full" { ScanType::Full } else { ScanType::Quick };
             let wordlist_vec = load_wordlist(wordlist.as_deref());
             let config = ScannerConfig {
@@ -383,7 +548,22 @@ async fn main() {
                 let _ = save_html_report(&result, &html_alt);
                 let _ = save_json_report(&result, &out_file);
                 println!("\n  {} Reports saved: {} + {}", c_accent("✓"), c_dim(&html_alt), c_dim(&out_file));
+                if with_pdf {
+                    let pdf_alt = out_file.replace(".json", ".pdf");
+                    match export_pdf_report(&result, &pdf_alt) {
+                        Ok(_) => println!("  {} PDF report saved → {}", c_accent("✓"), c_dim(&pdf_alt)),
+                        Err(e) => println!("  {} {}", c_red("✗"), e),
+                    }
+                }
                 if open { open_in_browser(&html_alt); }
+                return;
+            } else if out_file.ends_with(".pdf") {
+                // user forced pdf output
+                match export_pdf_report(&result, &out_file) {
+                    Ok(_) => println!("\n  {} PDF report saved → {}", c_accent("✓"), c_dim(&out_file)),
+                    Err(e) => println!("  {} {}", c_red("✗"), e),
+                }
+                if open { open_in_browser(&out_file); }
                 return;
             } else {
                 out_file
@@ -396,6 +576,13 @@ async fn main() {
                 let json_path = if html_path.ends_with(".html") { html_path.replace(".html", ".json") } else { format!("{}.json", html_path) };
                 let _ = save_json_report(&result, &json_path);
                 println!("  {} JSON report saved → {}", c_accent("✓"), c_dim(&json_path));
+            }
+            if with_pdf {
+                let pdf_path = if html_path.ends_with(".html") { html_path.replace(".html", ".pdf") } else { format!("{}.pdf", html_path) };
+                match export_pdf_report(&result, &pdf_path) {
+                    Ok(_) => println!("  {} PDF report saved → {}", c_accent("✓"), c_dim(&pdf_path)),
+                    Err(e) => println!("  {} {}", c_red("✗"), e),
+                }
             }
             if open { open_in_browser(&html_path); }
         }
@@ -549,7 +736,7 @@ async fn main() {
                 println!("{}", payload_str);
             }
         }
-        Commands::Report { input, output, open } => {
+        Commands::Report { input, output, pdf, open } => {
             let json_data = match fs::read_to_string(&input) {
                 Ok(d) => d,
                 Err(e) => {
@@ -564,16 +751,30 @@ async fn main() {
                     return;
                 }
             };
-            let out_path = output.unwrap_or_else(|| input.replace(".json", ".html"));
-            match save_html_report(&result, &out_path) {
-                Ok(_) => {
-                    println!("  {} Report generated → {}  ({} findings, severity {})",
-                        c_accent("✓"), c_dim(&out_path),
-                        c_bold(&result.total_findings().to_string()),
-                        c_orange(result.severity()));
-                    if open { open_in_browser(&out_path); }
+            if pdf {
+                let pdf_path = output.unwrap_or_else(|| input.replace(".json", ".pdf"));
+                match export_pdf_report(&result, &pdf_path) {
+                    Ok(_) => {
+                        println!("  {} PDF report generated → {}  ({} findings, severity {})",
+                            c_accent("✓"), c_dim(&pdf_path),
+                            c_bold(&result.total_findings().to_string()),
+                            c_orange(result.severity()));
+                        if open { open_in_browser(&pdf_path); }
+                    }
+                    Err(e) => println!("  {}", c_red(&e)),
                 }
-                Err(e) => println!("  {}", c_red(&e)),
+            } else {
+                let out_path = output.unwrap_or_else(|| input.replace(".json", ".html"));
+                match save_html_report(&result, &out_path) {
+                    Ok(_) => {
+                        println!("  {} Report generated → {}  ({} findings, severity {})",
+                            c_accent("✓"), c_dim(&out_path),
+                            c_bold(&result.total_findings().to_string()),
+                            c_orange(result.severity()));
+                        if open { open_in_browser(&out_path); }
+                    }
+                    Err(e) => println!("  {}", c_red(&e)),
+                }
             }
         }
         Commands::CveSearch { query, min_cvss } => {
@@ -595,6 +796,72 @@ async fn main() {
                     println!("     {} {} ({})", c_dim("product:"), c_cyan(&cve.product), c_dim(&cve.version_affected));
                     println!("     {} {}", c_dim("desc:   "), cve.description);
                     println!();
+                }
+            }
+        }
+        Commands::Schedule { cmd } => {
+            match cmd {
+                ScheduleCommands::Add { target, name, every, daily, mode, rate, timeout, proxy, reports_dir } => {
+                    let kind = if let Some(d) = daily {
+                        match parse_daily_time(&d) {
+                            Ok((h, m)) => ScheduleKind::Daily { hour: h, minute: m },
+                            Err(e) => {
+                                println!("  {} {}", c_red("✗"), e);
+                                return;
+                            }
+                        }
+                    } else {
+                        ScheduleKind::Interval { every_secs: every.unwrap_or(3600) }
+                    };
+                    let display_name = name.unwrap_or_else(|| format!("scan-{}", target.replace("://", "_").replace('/', "_")));
+                    let mut entry = ScheduleEntry::new(display_name, target.clone(), kind);
+                    entry.mode = mode;
+                    entry.rate = rate;
+                    entry.timeout = timeout;
+                    if let Some(p) = proxy { entry.proxy = p; }
+                    if let Some(dir) = reports_dir { entry.reports_dir = dir; }
+                    let (id, next_desc) = (entry.id.clone(), entry.next_run_ts.map(countdown).unwrap_or_else(|| "—".into()));
+                    let all = load_entries();
+                    let mut all = all;
+                    all.push(entry);
+                    match save_entries(&all) {
+                        Ok(_) => println!("  {} Scheduled! id {} · {} → {}\n    next run: {}  ·  reports dir: {}",
+                            c_accent("✓"), c_cyan(&id), c_bold("added"), c_cyan(&target), c_cyan(&next_desc), c_dim(&all.last().unwrap().reports_dir)),
+                        Err(e) => println!("  {} {}", c_red("✗"), e),
+                    }
+                }
+                ScheduleCommands::List {} => {
+                    print_schedule_list(&load_entries());
+                }
+                ScheduleCommands::Remove { id } => {
+                    let mut entries = load_entries();
+                    let before = entries.len();
+                    entries.retain(|e| e.id != id);
+                    if entries.len() == before {
+                        println!("  {} No schedule with id '{}'. Use {} to list ids.", c_red("✗"), id, c_dim("htool schedule list"));
+                    } else {
+                        let _ = save_entries(&entries);
+                        println!("  {} Removed schedule {}", c_accent("✓"), c_dim(&id));
+                    }
+                }
+                ScheduleCommands::Toggle { id, enable } => {
+                    let mut entries = load_entries();
+                    let found = entries.iter_mut().find(|e| e.id == id);
+                    match found {
+                        Some(e) => {
+                            e.enabled = enable.unwrap_or(!e.enabled);
+                            if e.enabled && e.next_run_ts.is_none() {
+                                e.reschedule(Local::now());
+                            }
+                            let state = if e.enabled { c_accent("enabled") } else { c_dim("disabled") };
+                            let _ = save_entries(&entries);
+                            println!("  {} Schedule {} is now {}", c_accent("✓"), c_dim(&id), state);
+                        }
+                        None => println!("  {} No schedule with id '{}'", c_red("✗"), id),
+                    }
+                }
+                ScheduleCommands::Run {} => {
+                    scheduler_daemon().await;
                 }
             }
         }

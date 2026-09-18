@@ -154,34 +154,7 @@ jobs:
             artifacts/**/*.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # ─── Deploy Website to Cloudflare Pages ──────────────────
-  deploy-site:
-    name: Deploy Website
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: website/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build website
-        run: npm run build
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: website
-          command: pages deploy out --project-name=htoolapp --branch=main
+  # Website deployment lives in .github/workflows/website.yml (GitHub Pages,
+  # zero secrets required). To publish to Cloudflare Pages instead, connect the
+  # repo once in the Cloudflare dashboard (Pages → Create → Connect to Git) —
+  # build command: cd website && npm ci && npm run build, output dir: website/out

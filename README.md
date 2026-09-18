@@ -1,13 +1,20 @@
 # 🔧 htool
 
 A professional-grade, all-in-one security testing framework with a **modern desktop GUI** and **CLI**, written in **Rust**.
-Includes modules for vulnerability scanning, stress testing (DoS simulation), credential stuffing, spam/flooding, payload generation, and reporting.
+Includes modules for vulnerability scanning, scheduled scanning, stress testing (DoS simulation), credential stuffing, spam/flooding, payload generation, and HTML/JSON/PDF reporting.
 
 **⚠️ Legal Disclaimer:** This tool is for **authorised security testing and educational purposes only**. Unauthorised use against systems you do not own or have explicit permission to test is illegal. Use at your own risk.
 
 ---
 
-## ✨ What's new in v3.1
+## ✨ What's new in v3.2
+
+- ⏱ **Scan Scheduler** — schedule scans *every N minutes* or *daily at HH:MM*. The GUI gets a full Scheduler tab (countdowns, pause/enable, run-now, last-status history); the CLI gets `htool schedule add/list/toggle/remove` plus a `schedule run` daemon. Scheduled scans automatically write **HTML + JSON + PDF** reports to their reports folder. Everything persists in `~/.htool/schedules.json`
+- 📕 **PDF reports** — beautifully typeset A4 PDF reports with a branded header banner, severity stat grid, colored findings sections and remediation recommendations. Zero dependencies (hand-rolled PDF engine, core Helvetica fonts). Export from the GUI (📕 Export PDF), or CLI: `htool report scan.json --pdf`, `htool scan target --output report.pdf`, `--with-pdf`
+- ☀️ **Dark / Light mode toggle** — full dual-palette redesign of the GUI. One click in the top bar switches the entire dashboard (cards, chips, code blocks, progress bars); your choice is remembered in `~/.htool/ui.json`
+- 🌍 **Website deploys itself now** — the site builds & publishes to **GitHub Pages on every push** with zero secrets/tokens required (see [Website deployment](#-website-deployment)) — plus the site got its own light/dark toggle
+
+## ✨ What was new in v3.1
 
 - 🎨 **Fully redesigned GUI** — deep-navy cyber theme with neon-emerald accents, rounded cards, stat grids, severity badges and hover states across every module
 - 📊 **In-app Report Viewer** — open any scan JSON and read the **fully rendered report inside the app** (stat cards, chips, code blocks — not raw source), plus a syntax-tinted JSON view
@@ -29,7 +36,8 @@ Includes modules for vulnerability scanning, stress testing (DoS simulation), cr
 | **Credential Stuffing** | Mass login attempts with wordlists, proxy rotation, rate limiting, result logging |
 | **Spam** | Database flooding, comment spam, registration spam — rate-limit testing |
 | **Payload** | Reverse shells (Linux, Windows, macOS, Python, PHP, Node.js, Ruby, Perl), bind shells, PHP web shells, download & execute |
-| **Report** | Modern HTML + JSON reports, in-app rendered report viewer, open-in-browser export |
+| **Report** | Modern **HTML + JSON + PDF** reports, in-app rendered report viewer, open-in-browser export |
+| **Scheduler** | Recurring scans (interval or daily) with persistent schedules, automatic HTML+JSON+PDF report writing, run history |
 
 ---
 
@@ -110,8 +118,34 @@ htool spam db-flood http://example.com/api/insert --count 500 --threads 20
 
 #### 7. Report Generation (`report`)
 ```bash
+# HTML report (default)
 htool report scan_results.json --output report.html --open
+
+# PDF report
+htool report scan_results.json --pdf
+
+# Scan and save all three formats at once
+htool scan example.com --output report.html --with-json --with-pdf
+htool scan example.com --output report.pdf   # PDF only
 ```
+
+#### 8. Scan Scheduler (`schedule`)
+```bash
+# Scan every hour, reports land in ~/.htool/reports
+htool schedule add https://example.com --name "hourly check" --every 3600
+
+# Scan every day at 09:00 local time
+htool schedule add https://example.com --daily 09:00 --mode full
+
+# Manage
+htool schedule list
+htool schedule toggle sc-5c8961          # pause / resume
+htool schedule remove sc-5c8961
+
+# Start the scheduler daemon — fires due scans automatically (Ctrl+C to stop)
+htool schedule run
+```
+Schedules persist in `~/.htool/schedules.json`; each run writes `reports/<name>_<timestamp>.html/.json/.pdf` and records the last status. The GUI has the same scheduler with live countdowns — no terminal needed.
 
 ---
 
@@ -122,11 +156,38 @@ Launch the redesigned interactive dashboard:
 htool-gui
 ```
 
-**v3.1 GUI highlights**
+**v3.2 GUI highlights**
 - **Command Center** — module launcher cards + last-scan severity overview
-- **Scanner** — config card, live phase progress bar, then a full *rendered report preview* with stat grid, severity badge, port/tech chips and colored vulnerability lists
-- **Report Viewer** — load any scan JSON: read the rendered report in-app (or switch to the tinted JSON view), export HTML/JSON, or open in browser
+- **Scan Scheduler tab** — build schedules (every N min / daily at HH:MM), see next-run countdowns, pause/enable, run-now, last-run status per schedule
+- **Scanner** — config card, live phase progress bar, then a full *rendered report preview* with stat grid, severity badge, port/tech chips and colored vulnerability lists — plus **Export HTML / PDF / JSON** buttons
+- **Report Viewer** — load any scan JSON: read the rendered report in-app (or switch to the tinted JSON view), export HTML/**PDF**/JSON, or open in browser
+- **☀️/☾ Theme toggle** — top-right button switches the entire dashboard between dark and light mode; preference is saved
 - **Payload, Stress, Cred Stuffing, Spam & CVE modules** — all restyled with cards, badges and one-click copy/save actions
 - **Activity log** — always-visible, timestamped log strip
 
 * **Desktop Icon:** The Windows executable ships with a custom high-tech glowing cybersecurity shield icon (`assets/icon.ico`).
+
+---
+
+## 🌍 Website deployment
+
+The website (`website/`) is a static Next.js export. It deploys **automatically to GitHub Pages** on every push to `main` that touches `website/**` — no API tokens, no secrets, no manual steps:
+
+- Site URL: `https://resolutefemi.github.io/hacker_toolkit/`
+- Workflow: [.github/workflows/website.yml](.github/workflows/website.yml) (uses the built-in `GITHUB_TOKEN`)
+- First deploy: after the workflow succeeds once, open **Settings → Pages** and confirm the source is *GitHub Actions* (GitHub usually provisions this automatically)
+
+<details>
+<summary><b>Prefer Cloudflare Pages (htoolapp.pages.dev)? No token needed either.</b></summary>
+
+The old workflow used a `CLOUDFLARE_API_TOKEN` secret to push the site via the API. That token is **not compulsory** — Cloudflare can build the site itself:
+
+1. Go to the [Cloudflare dashboard → Workers & Pages](https://dash.cloudflare.com/) → **Create → Pages → Connect to Git**
+2. Select the `hacker_toolkit` repo
+3. Build settings:
+   - Build command: `cd website && npm ci && npm run build`
+   - Output directory: `website/out`
+4. Save — Cloudflare now rebuilds the site on every push (leave `NEXT_PUBLIC_BASE_PATH` unset so assets resolve at the domain root)
+
+If an old direct-upload `htoolapp` project exists, delete or rename it first so the git-connected project can reuse the `htoolapp.pages.dev` subdomain.
+</details>

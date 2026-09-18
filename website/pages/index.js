@@ -46,12 +46,12 @@ function useReveal() {
 }
 
 function useLatestRelease() {
-  const [rel, setRel] = useState({ tag: 'v3.1.0', assets: 3, loading: true })
+  const [rel, setRel] = useState({ tag: 'v3.2.0', assets: 3, loading: true })
   useEffect(() => {
     fetch('https://api.github.com/repos/Resolutefemi/hacker_toolkit/releases/latest')
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => setRel({ tag: d.tag_name, assets: d.assets?.length || 3, loading: false }))
-      .catch(() => setRel({ tag: 'v3.1.0', assets: 3, loading: false }))
+      .catch(() => setRel({ tag: 'v3.2.0', assets: 3, loading: false }))
   }, [])
   return rel
 }
@@ -116,6 +116,26 @@ function Terminal() {
   )
 }
 
+// ─── Theme toggle ──────────────────────────────────────────
+
+function ThemeToggle() {
+  const [light, setLight] = useState(false)
+  useEffect(() => {
+    setLight(document.documentElement.classList.contains('light'))
+  }, [])
+  const flip = () => {
+    const next = !light
+    setLight(next)
+    document.documentElement.classList.toggle('light', next)
+    try { localStorage.setItem('htool-theme', next ? 'light' : 'dark') } catch (e) {}
+  }
+  return (
+    <button onClick={flip} className="theme-toggle" aria-label={light ? 'Switch to dark mode' : 'Switch to light mode'} title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+      {light ? '☾' : '☀'}
+    </button>
+  )
+}
+
 // ─── Header ────────────────────────────────────────────────
 
 function Header() {
@@ -137,13 +157,14 @@ function Header() {
             <HIcon className="w-5 h-5" />
           </div>
           <span className="text-white text-xl font-bold font-mono tracking-tight">htool</span>
-          <span className="text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/30 px-1.5 py-0.5 rounded-full">v3.1</span>
+          <span className="text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/30 px-1.5 py-0.5 rounded-full">v3.2</span>
         </a>
 
         <nav className="hidden md:flex items-center gap-7">
           {links.map(([href, label]) => (
             <a key={href} href={href} className="text-cyber-dim hover:text-matrix-500 transition-colors text-[13.5px] font-medium">{label}</a>
           ))}
+          <ThemeToggle />
           <a href={ASSETS.windows} className="bg-matrix-500 text-black px-4 py-2 rounded-lg font-semibold text-[13.5px] hover:bg-matrix-400 hover:shadow-glow-accent transition-all btn-flash flex items-center gap-1.5">
             <OsWindows className="w-3.5 h-3.5" /> Download
           </a>
@@ -161,6 +182,7 @@ function Header() {
           {links.map(([href, label]) => (
             <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-2xl text-cyber-dim hover:text-matrix-500 font-mono">[ {label} ]</a>
           ))}
+          <ThemeToggle />
         </div>
       </div>
     </header>
@@ -183,7 +205,7 @@ function Hero() {
         <div>
           <div className="inline-flex items-center gap-2 bg-matrix-500/10 border border-matrix-500/30 text-matrix-500 text-xs font-mono px-3.5 py-1.5 rounded-full mb-7">
             <span className="w-1.5 h-1.5 rounded-full bg-matrix-500 animate-pulse" />
-            v3.1.0 — redesigned UI · in-app report viewer
+            v3.2.0 — PDF reports · scan scheduler · light mode
           </div>
           <h1 className="font-display text-[2.6rem] leading-[1.06] sm:text-6xl xl:text-[4.4rem] font-bold text-white mb-6">
             The hacker toolkit,
@@ -307,7 +329,7 @@ function Features() {
 // ─── App UI showcase (CSS mock of the new GUI) ─────────────
 
 function AppShowcase() {
-  const sidebar = [['◈', 'Dashboard', true], ['◉', 'Scanner', false], ['⚡', 'Stress Test', false], ['@', 'Cred Stuffing', false], ['✉', 'Spam & Flood', false], ['>_', 'Payload Gen', false], ['▤', 'Report Viewer', false], ['☰', 'CVE Database', false]]
+  const sidebar = [['◈', 'Dashboard', false], ['◉', 'Scanner', false], ['⏱', 'Scheduler', true], ['⚡', 'Stress Test', false], ['@', 'Cred Stuffing', false], ['✉', 'Spam & Flood', false], ['>_', 'Payload Gen', false], ['▤', 'Report Viewer', false], ['☰', 'CVE Database', false]]
   const stats = [['4', 'OPEN PORTS', 'text-matrix-500'], ['2', 'SQL INJECTION', 'text-red-400'], ['1', 'XSS', 'text-red-400'], ['0', 'TAKEOVERS', 'text-red-400'], ['3', 'TECHNOLOGIES', 'text-cyber-purple']]
 
   return (
@@ -316,7 +338,7 @@ function AppShowcase() {
         <div className="reveal text-center mb-14">
           <span className="text-xs font-mono text-matrix-500 bg-matrix-500/10 px-3.5 py-1.5 rounded-full border border-matrix-500/25">● THE NEW APP</span>
           <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-5 mb-4">A dashboard that <span className="text-gradient">feels premium.</span></h2>
-          <p className="text-cyber-dim max-w-2xl mx-auto">v3.1 ships a fully redesigned GUI — deep-navy theme, neon-emerald accents, stat cards, severity badges and a built-in report viewer that renders your scan results right inside the app.</p>
+          <p className="text-cyber-dim max-w-2xl mx-auto">v3.2 ships a fully redesigned GUI — deep-navy theme, neon-emerald accents, stat cards, severity badges and a built-in report viewer that renders your scan results right inside the app. New in v3.2: scheduled scans, PDF reports and a light/dark theme switch.</p>
         </div>
 
         <div className="reveal max-w-4xl mx-auto">
@@ -327,7 +349,7 @@ function AppShowcase() {
               <span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24]" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
               <span className="text-[11px] font-mono text-cyber-faint ml-3">htool — Ultimate Hacker Toolkit</span>
-              <span className="ml-auto text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/25 px-2 py-0.5 rounded-full">MODULE · SCANNER</span>
+              <span className="ml-auto text-[10px] font-mono text-matrix-500 bg-matrix-500/10 border border-matrix-500/25 px-2 py-0.5 rounded-full">MODULE · SCHEDULER</span>
             </div>
             <div className="grid grid-cols-[120px_1fr] sm:grid-cols-[170px_1fr] min-h-[380px]">
               {/* sidebar */}
@@ -379,7 +401,7 @@ function AppShowcase() {
               </div>
             </div>
           </div>
-          <p className="text-center text-cyber-faint text-xs mt-4 font-mono">▲ actual v3.1 GUI — dark navy theme, stat grid, severity badges, rendered report preview</p>
+          <p className="text-center text-cyber-faint text-xs mt-4 font-mono">▲ actual v3.2 GUI — stat grid, severity badges, rendered report preview, scheduler</p>
         </div>
       </div>
     </section>
@@ -457,7 +479,7 @@ function Download() {
 function FAQ() {
   const faqs = [
     ['Is htool free?', 'Yes — htool is fully open source under the MIT license. The Windows zip includes both the desktop GUI (htool-gui.exe) and the CLI (htool.exe). No accounts, no telemetry, no paywalls.'],
-    ['What changed in v3.1?', 'The entire GUI was redesigned with a modern dark-navy theme, neon accents, stat cards and severity badges. A new Report Viewer renders scan reports and JSON inside the app, the CLI gained colored output and rich summaries, and several bugs were fixed — including the payload command flags and WAF detection results being dropped.'],
+    ['What changed in v3.2?', 'On top of the v3.1 redesign (modern dark-navy GUI, in-app Report Viewer, richer CLI), v3.2 adds: a Scan Scheduler that runs scans automatically (every N minutes or daily) and writes HTML + JSON + PDF reports, one-click PDF report export from the app and CLI, and a light/dark theme toggle that remembers your choice.'],
     ['Which Windows build do I download?', 'Download htool-x86_64-pc-windows-msvc.zip from the latest release. Right-click → Extract all, then run htool-gui.exe for the dashboard or htool.exe from a terminal for the CLI. SmartScreen may warn on first run — click "More info" → "Run anyway".'],
     ['Is this legal to use?', 'Only against systems you own or have explicit written permission to test. htool is built for authorised security assessments, CTF practice and education. Unauthorised use against third-party systems is illegal.'],
     ['Does the scanner need an internet connection?', 'The scanner needs network access to your target, but the CVE database is bundled offline inside the binary — CVE matching, payload generation and reporting all work fully offline.'],
@@ -534,7 +556,7 @@ function Footer() {
         </div>
         <div className="mt-8 pt-8 border-t border-white/5 text-center text-cyber-faint text-xs leading-relaxed">
           <p>⚠️ For authorised security testing and educational purposes only. Unauthorised use against systems you do not own is illegal.</p>
-          <p className="mt-2">© {new Date().getFullYear()} Resolute Femi · htool v3.1.0 · built with Rust, Tokio & egui</p>
+          <p className="mt-2">© {new Date().getFullYear()} Resolute Femi · htool v3.2.0 · built with Rust, Tokio & egui</p>
         </div>
       </div>
     </footer>
