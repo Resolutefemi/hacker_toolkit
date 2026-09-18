@@ -53,21 +53,21 @@ fn configure_theme(ctx: &egui::Context) {
     v.widgets.noninteractive.rounding = Rounding::same(6.0);
     v.widgets.inactive.bg_fill = theme::BG_WIDGET;
     v.widgets.inactive.weak_bg_fill = theme::BG_WIDGET;
-    v.widgets.inactive.fg_stroke = Stroke::new(1.0, theme::TEXT_DIM);
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, theme::STROKE);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, theme::TEXT_DIM);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, theme::STROKE);
     v.widgets.inactive.rounding = Rounding::same(8.0);
     v.widgets.hovered.bg_fill = Color32::from_rgb(32, 43, 72);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(32, 43, 72);
-    v.widgets.hovered.fg_stroke = Stroke::new(1.0, theme::ACCENT);
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, theme::ACCENT.gamma_multiply(0.6));
+    v.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, theme::ACCENT.gamma_multiply(0.6));
     v.widgets.hovered.rounding = Rounding::same(8.0);
     v.widgets.active.bg_fill = theme::ACCENT_DIM;
     v.widgets.active.weak_bg_fill = theme::ACCENT_DIM;
-    v.widgets.active.fg_stroke = Stroke::new(1.0, theme::ACCENT);
-    v.widgets.active.bg_stroke = Stroke::new(1.0, theme::ACCENT);
+    v.widgets.active.fg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
+    v.widgets.active.bg_stroke = Stroke::new(1.0_f32, theme::ACCENT);
     v.widgets.active.rounding = Rounding::same(8.0);
     v.selection.bg_fill = theme::ACCENT_DIM;
-    v.selection.stroke = Stroke::new(1.0, theme::ACCENT);
+    v.selection.stroke = Stroke::new(1.0_f32, theme::ACCENT);
     ctx.set_style(style);
 
     let mut fonts = egui::FontDefinitions::default();
@@ -80,7 +80,7 @@ fn card(ui: &mut egui::Ui, title: &str, accent: Color32, add: impl FnOnce(&mut e
     egui::Frame::default()
         .fill(theme::BG_CARD)
         .rounding(Rounding::same(12.0))
-        .stroke(Stroke::new(1.0, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::STROKE))
         .inner_margin(Margin::same(16.0))
         .outer_margin(egui::Margin { bottom: 12.0, ..Default::default() })
         .show(ui, |ui| {
@@ -116,7 +116,7 @@ fn stat_card(ui: &mut egui::Ui, count: usize, label: &str, color: Color32) {
     egui::Frame::default()
         .fill(theme::BG_ROW)
         .rounding(Rounding::same(10.0))
-        .stroke(Stroke::new(1.0, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::STROKE))
         .inner_margin(Margin::same(10.0))
         .show(ui, |ui| {
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
@@ -156,7 +156,7 @@ fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
 fn ghost_button(ui: &mut egui::Ui, text: &str) -> bool {
     ui.add(egui::Button::new(RichText::new(text).size(12.5).color(theme::CYAN))
         .fill(Color32::TRANSPARENT)
-        .stroke(Stroke::new(1.0, theme::STROKE))
+        .stroke(Stroke::new(1.0_f32, theme::STROKE))
         .rounding(Rounding::same(8.0))).clicked()
 }
 
@@ -193,7 +193,7 @@ fn json_viewer(ui: &mut egui::Ui, json: &str, max_h: f32) {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new(indent_ws.to_string() + &key_part).size(11.5).color(theme::CYAN).monospace());
                         if !rest.is_empty() && !key_part.is_empty() {
-                            let color = if rest.starts_with('"') { theme::OK } else if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) { theme::ORANGE } else { theme::TEXT_DIM };
+                            let color = if rest.starts_with('"') { theme::OK } else if rest.chars().next().is_some_and(|c| c.is_ascii_digit()) { theme::ORANGE } else { theme::TEXT_DIM };
                             ui.label(RichText::new(rest).size(11.5).color(color).monospace());
                         } else if !rest.is_empty() {
                             ui.label(RichText::new(rest).size(11.5).color(theme::TEXT_DIM).monospace());
@@ -244,7 +244,7 @@ fn chip_grid(ui: &mut egui::Ui, items: &[String], default_fg: Color32) {
 
 enum AppMessage {
     ScanProgress(f32),
-    ScanFinished(ScanResult),
+    ScanFinished(Box<ScanResult>),
     StressFinished(Result<u64, String>),
     CredStuffFinished(Vec<LoginResult>),
     SpamFinished(usize),
@@ -481,7 +481,7 @@ impl UltimateApp {
                 let _ = tx_progress.send(AppMessage::ScanProgress(progress));
                 ctx_progress.request_repaint();
             }))).await;
-            let _ = tx.send(AppMessage::ScanFinished(result));
+            let _ = tx.send(AppMessage::ScanFinished(Box::new(result)));
             ctx_clone.request_repaint();
         });
         self.add_log(format!("Scan started on {} ({} mode)", target, mode));
@@ -521,7 +521,7 @@ impl eframe::App for UltimateApp {
                         "Scan completed — {} findings across {} open ports.",
                         res.total_findings(), res.open_ports.len()
                     ));
-                    self.scan_result = Some(res);
+                    self.scan_result = Some(*res);
                 }
                 AppMessage::StressFinished(res) => {
                     self.stress_in_progress = false;
@@ -689,7 +689,7 @@ impl UltimateApp {
             egui::Frame::default()
                 .fill(severity_color(sev).gamma_multiply(0.10))
                 .rounding(Rounding::same(10.0))
-                .stroke(Stroke::new(1.0, severity_color(sev).gamma_multiply(0.5)))
+                .stroke(Stroke::new(1.0_f32, severity_color(sev).gamma_multiply(0.5)))
                 .inner_margin(Margin::same(12.0))
                 .outer_margin(egui::Margin { bottom: 12.0, ..Default::default() })
                 .show(ui, |ui| {
@@ -722,7 +722,7 @@ impl UltimateApp {
             for (i, (icon, name, desc, tab, color)) in modules.iter().enumerate() {
                 egui::Frame::default()
                     .fill(theme::BG_CARD).rounding(Rounding::same(12.0))
-                    .stroke(Stroke::new(1.0, theme::STROKE))
+                    .stroke(Stroke::new(1.0_f32, theme::STROKE))
                     .inner_margin(Margin::same(14.0))
                     .show(ui, |ui| {
                         ui.set_min_width(190.0);
@@ -735,7 +735,7 @@ impl UltimateApp {
                             ui.add_space(4.0);
                             ui.label(RichText::new(*desc).size(11.0).color(theme::TEXT_DIM));
                             ui.add_space(6.0);
-                            let btn = ui.add(egui::Button::new(RichText::new(format!("Open {}", *icon)).size(11.5).color(*color)).fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, theme::STROKE)));
+                            let btn = ui.add(egui::Button::new(RichText::new(format!("Open {}", *icon)).size(11.5).color(*color)).fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0_f32, theme::STROKE)));
                             if btn.clicked() { self.active_tab = *tab; }
                         });
                     });
@@ -1236,12 +1236,11 @@ impl UltimateApp {
             ui.horizontal(|ui| {
                 field_label(ui, "QUERY");
                 let resp = ui.add(egui::TextEdit::singleline(&mut self.cve_query).hint_text("Apache, Log4j, Redis, WordPress…").desired_width(300.0));
-                if ui.add(egui::Button::new(RichText::new("⌕  Search").color(Color32::BLACK)).fill(theme::ACCENT).rounding(Rounding::same(6.0))).clicked()
-                    || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
-                    if !self.cve_query.is_empty() {
-                        self.cve_results = search_cves(&self.cve_query);
-                        self.add_log(format!("CVE search \"{}\" — {} matches", self.cve_query, self.cve_results.len()));
-                    }
+                let search_clicked = ui.add(egui::Button::new(RichText::new("⌕  Search").color(Color32::BLACK)).fill(theme::ACCENT).rounding(Rounding::same(6.0))).clicked()
+                    || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                if search_clicked && !self.cve_query.is_empty() {
+                    self.cve_results = search_cves(&self.cve_query);
+                    self.add_log(format!("CVE search \"{}\" — {} matches", self.cve_query, self.cve_results.len()));
                 }
                 if ui.button("clear").clicked() { self.cve_results.clear(); self.cve_query.clear(); }
             });
@@ -1255,7 +1254,7 @@ impl UltimateApp {
                 for cve in &self.cve_results {
                     let sev_color = if cve.cvss_score >= 9.0 { theme::DANGER } else if cve.cvss_score >= 7.0 { theme::ORANGE } else { theme::WARN };
                     egui::Frame::default().fill(theme::BG_CARD).rounding(Rounding::same(10.0))
-                        .stroke(Stroke::new(1.0, theme::STROKE)).inner_margin(Margin::same(12.0))
+                        .stroke(Stroke::new(1.0_f32, theme::STROKE)).inner_margin(Margin::same(12.0))
                         .outer_margin(egui::Margin { bottom: 8.0, ..Default::default() })
                         .show(ui, |ui| {
                             ui.set_min_width(ui.available_width());
@@ -1280,7 +1279,7 @@ impl UltimateApp {
         // Header banner
         egui::Frame::default()
             .fill(theme::BG_CARD).rounding(Rounding::same(12.0))
-            .stroke(Stroke::new(1.0, theme::STROKE))
+            .stroke(Stroke::new(1.0_f32, theme::STROKE))
             .inner_margin(Margin::same(16.0))
             .outer_margin(egui::Margin { bottom: 12.0, ..Default::default() })
             .show(ui, |ui| {

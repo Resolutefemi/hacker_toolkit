@@ -139,6 +139,7 @@ pub async fn sms_bomber(
 }
 
 /// Comment spam on blog posts or forums
+#[allow(clippy::too_many_arguments)]
 pub async fn comment_spam(
     target_url: &str,
     comment_field: &str,
@@ -154,8 +155,8 @@ pub async fn comment_spam(
     let semaphore = Arc::new(Semaphore::new(threads));
     let mut tasks = vec![];
     let mut posted = 0;
-    let names = vec!["SpamBot", "Visitor", "Guest", "Anonymous", "User"];
-    let emails = vec!["spam@example.com", "bot@example.org", "noreply@test.com"];
+    let names = ["SpamBot", "Visitor", "Guest", "Anonymous", "User"];
+    let emails = ["spam@example.com", "bot@example.org", "noreply@test.com"];
 
     for i in 0..count {
         let permit = semaphore.clone().acquire_owned().await.unwrap();

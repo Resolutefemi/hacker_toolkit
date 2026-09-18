@@ -353,7 +353,7 @@ pub fn generate_cred_report(results: &[LoginResult], output_path: &str) -> Resul
     content.push_str(&format!("Successful: {}\n", successful.len()));
     content.push_str("\nSuccessful credentials:\n");
     content.push_str("-".repeat(50).as_str());
-    content.push_str("\n");
+    content.push('\n');
     for res in successful {
         content.push_str(&format!("{}:{}\n", res.username, res.password));
     }

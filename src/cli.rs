@@ -6,7 +6,6 @@ use clap::{Parser, Subcommand};
 use htool::*;
 use std::fs;
 use std::io::IsTerminal;
-use tokio;
 use mimalloc::MiMalloc;
 
 #[global_allocator]
@@ -56,7 +55,7 @@ fn print_banner() {
 
 /// Print a key → value summary line
 fn kv(key: &str, value: String) {
-    println!("  {} {}", format!("{:<22}", key), value);
+    println!("  {:<22} {}", key, value);
 }
 
 fn print_scan_summary(result: &ScanResult) {
@@ -594,7 +593,7 @@ async fn main() {
                     println!("  {} {}  CVSS {}  {}",
                         c_accent("📌"), c_bold(&cve.id), score_colored, c_dim(&cve.published_year.to_string()));
                     println!("     {} {} ({})", c_dim("product:"), c_cyan(&cve.product), c_dim(&cve.version_affected));
-                    println!("     {} {}", c_dim("desc:   "), &cve.description);
+                    println!("     {} {}", c_dim("desc:   "), cve.description);
                     println!();
                 }
             }
